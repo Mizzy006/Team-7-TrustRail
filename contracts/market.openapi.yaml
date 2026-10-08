@@ -1,0 +1,481 @@
+openapi: 3.1.0
+info:
+  title: TrustRail Market API
+  version: 1.0.0
+  summary: Demand aggregation, pools and orders for retailers (MOCK rail, no real funds).
+  description: |
+    SOURCE OF TRUTH for Frontend, Agent and Market service. Change only via PR (docs/PROJECT_SPEC.md section 5).
+
+    Conventions
+    - Money: integer minor units (kobo). Never floats. NGN only in the MVP.
+    - Time: UTC `YYYY-MM-DDTHH:MM:SSZ`, whole seconds.
+    - Ids: `<prefix>_<opaque>`. Prefixes: sku, prd, pool, ord, inv, mov, prn, pay.
+    - JSON field names are snake_case.
+    - Auth: `Authorization: Bearer <token>`. Retailer, producer and agent tokens are separate; a token only works on its own endpoints (403 otherwise).
+    - Scoping comes from the token: "the caller's retailer".
+    - Errors: `{ "error": { "code", "message", "request_id" } }`. Codes: UNAUTHENTICATED(401), FORBIDDEN(403), NOT_FOUND(404), CONFLICT(409), VALIDATION_ERROR(422).
+    - Mock server: `npx @stoplight/prism-cli mock contracts/market.openapi.yaml -p 4011`.
+
+servers:
+  - url: http://localhost:8002
+    description: Local
+tags:
+  - name: Catalog
+    description: Products, SKUs and tiered pricing
+  - name: Inventory
+    description: Retailer stock levels and movements
+  - name: Pools
+    description: Group-buying pools with MOQ and tier unlocks
+  - name: Orders
+    description: Direct orders and pool commitments
+  - name: Internal
+    description: Service endpoints (Agent and Gateway only)
+  - name: Demo
+    description: Only when DEMO_MODE=true
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [Catalog]
+      summary: Liveness probe (no auth)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { const: ok }
+
+  /v1/catalog:
+    get:
+      operationId: listCatalog
+      tags: [Catalog]
+      summary: List all products with tiered pricing
+      security: [{ retailerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [products]
+                properties:
+                  products:
+                    type: array
+                    items: { $ref: "#/components/schemas/Product" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/catalog/{sku_id}:
+    get:
+      operationId: getSku
+      tags: [Catalog]
+      summary: Get one SKU with its tier ladder and current pool
+      security: [{ retailerAuth: [] }]
+      parameters:
+        - { name: sku_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SkuDetail" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/inventory:
+    get:
+      operationId: getInventory
+      tags: [Inventory]
+      summary: Stock levels for the caller's retailer
+      security: [{ retailerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/InventoryItem" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/inventory/movements:
+    post:
+      operationId: recordMovement
+      tags: [Inventory]
+      summary: Record a sale, receipt or adjustment
+      security: [{ retailerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryMovementRequest" }
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryMovement" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/pools:
+    get:
+      operationId: listPools
+      tags: [Pools]
+      summary: List pools in the caller's locality
+      security: [{ retailerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pools]
+                properties:
+                  pools:
+                    type: array
+                    items: { $ref: "#/components/schemas/Pool" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/pools/{pool_id}:
+    get:
+      operationId: getPool
+      tags: [Pools]
+      summary: Pool detail with progress and next tier
+      security: [{ retailerAuth: [] }]
+      parameters:
+        - { name: pool_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pool" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/pools/{pool_id}/commit:
+    post:
+      operationId: commitToPool
+      tags: [Pools]
+      summary: Commit a quantity to a pool (creates an order awaiting payment)
+      security: [{ retailerAuth: [] }]
+      parameters:
+        - { name: pool_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PoolCommitRequest" }
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/orders:
+    post:
+      operationId: createOrder
+      tags: [Orders]
+      summary: Create a direct order or a pool commitment
+      security: [{ retailerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        default: { $ref: "#/components/responses/Error" }
+    get:
+      operationId: listOrders
+      tags: [Orders]
+      summary: List the caller's retailer's orders
+      security: [{ retailerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orders]
+                properties:
+                  orders:
+                    type: array
+                    items: { $ref: "#/components/schemas/Order" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/orders/{order_id}:
+    get:
+      operationId: getOrder
+      tags: [Orders]
+      summary: Order detail
+      security: [{ retailerAuth: [] }]
+      parameters:
+        - { name: order_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/orders/{order_id}/payment:
+    post:
+      operationId: recordPayment
+      tags: [Orders]
+      summary: Record the intent_id after the agent has paid via the Gateway
+      description: |
+        The agent's `request_payment(order_id)` builds the intent from the order's
+        `payment_request` (payee, amount, reference) with `Idempotency-Key = order_id`,
+        then calls the Gateway. This endpoint records the returned intent_id.
+        Market verifies with the Gateway via `/internal/v1/intents/{id}` — never on the agent's word.
+      security: [{ agentAuth: [] }]
+      parameters:
+        - { name: order_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordPaymentRequest" }
+      responses:
+        "200":
+          description: Recorded (status may become awaiting_approval)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /v1/pools/{pool_id}/close:
+    post:
+      operationId: closePool
+      tags: [Pools, Demo]
+      summary: Close a pool now (deadline job or demo helper)
+      security: [{ retailerAuth: [] }]
+      parameters:
+        - { name: pool_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Closed (success if committed_qty >= moq)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pool" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /internal/v1/pools/{pool_id}:
+    get:
+      operationId: internalGetPool
+      tags: [Internal]
+      summary: Pool detail for the Agent service
+      security: [{ serviceAuth: [] }]
+      parameters:
+        - { name: pool_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pool" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /demo/v1/reset:
+    post:
+      operationId: resetDemo
+      tags: [Demo]
+      summary: Wipe and reseed market state (DEMO_MODE only)
+      security: []
+      responses:
+        "200":
+          description: Reset
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { const: true } } }
+
+components:
+  securitySchemes:
+    retailerAuth:
+      type: http
+      scheme: bearer
+      description: Retailer owner token (e.g. tok_owner_ada)
+    producerAuth:
+      type: http
+      scheme: bearer
+      description: Producer token (e.g. tok_producer_prime)
+    agentAuth:
+      type: http
+      scheme: bearer
+      description: Agent key (e.g. key_agent_restock)
+    serviceAuth:
+      type: http
+      scheme: bearer
+      description: Service token (e.g. key_service_market)
+
+  responses:
+    Error:
+      description: Common error envelope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            request_id: { type: string }
+
+    Money:
+      type: object
+      required: [amount_minor, currency]
+      properties:
+        amount_minor: { type: integer, minimum: 0, description: Integer minor units (kobo) }
+        currency: { type: string, const: NGN }
+
+    Tier:
+      type: object
+      required: [min_qty, unit_price_minor]
+      properties:
+        min_qty: { type: integer, minimum: 1 }
+        unit_price_minor: { type: integer, minimum: 1 }
+
+    Product:
+      type: object
+      required: [sku_id, sku_name, producer_id, unit, tiers]
+      properties:
+        sku_id: { type: string }
+        sku_name: { type: string }
+        producer_id: { type: string }
+        unit: { type: string, description: 'e.g. "carton", "50kg bag"' }
+        tiers:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/Tier" }
+
+    SkuDetail:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties:
+            open_pool_id: { type: string, nullable: true }
+            current_unit_price_minor: { type: integer }
+
+    InventoryItem:
+      type: object
+      required: [sku_id, on_hand, days_of_cover]
+      properties:
+        sku_id: { type: string }
+        on_hand: { type: integer, minimum: 0 }
+        days_of_cover: { type: number, description: "On-hand / average daily sales, 1 decimal" }
+
+    InventoryMovementRequest:
+      type: object
+      required: [sku_id, kind, qty]
+      properties:
+        sku_id: { type: string }
+        kind: { type: string, enum: [sale, receipt, adjustment] }
+        qty: { type: integer, description: "Positive for receipt, negative for sale" }
+        note: { type: string }
+
+    InventoryMovement:
+      type: object
+      required: [movement_id, sku_id, kind, qty, created_at]
+      properties:
+        movement_id: { type: string }
+        sku_id: { type: string }
+        kind: { type: string, enum: [sale, receipt, adjustment] }
+        qty: { type: integer }
+        note: { type: string }
+        created_at: { type: string, format: date-time }
+
+    Pool:
+      type: object
+      required: [pool_id, sku_id, producer_id, locality, status, moq, committed_qty, tiers]
+      properties:
+        pool_id: { type: string }
+        sku_id: { type: string }
+        sku_name: { type: string }
+        producer_id: { type: string }
+        locality: { type: string }
+        status: { type: string, enum: [open, closed_success, closed_failed] }
+        moq: { type: integer, minimum: 1 }
+        committed_qty: { type: integer, minimum: 0 }
+        progress_pct: { type: number }
+        deadline: { type: string, format: date-time }
+        tiers:
+          type: array
+          items: { $ref: "#/components/schemas/Tier" }
+        current_unit_price_minor: { type: integer }
+        next_tier:
+          type: object
+          nullable: true
+          properties:
+            min_qty: { type: integer }
+            unit_price_minor: { type: integer }
+
+    PoolCommitRequest:
+      type: object
+      required: [qty]
+      properties:
+        qty: { type: integer, minimum: 1 }
+
+    CreateOrderRequest:
+      type: object
+      required: [kind, sku_id, qty]
+      properties:
+        kind: { type: string, enum: [pool_commitment, direct] }
+        sku_id: { type: string }
+        qty: { type: integer, minimum: 1 }
+        pool_id: { type: string, description: "Required if kind = pool_commitment" }
+
+    PaymentRequest:
+      type: object
+      required: [payee_id, amount, reference, description]
+      properties:
+        payee_id: { type: string }
+        amount: { $ref: "#/components/schemas/Money" }
+        reference: { type: string }
+        description: { type: string }
+
+    Order:
+      type: object
+      required: [order_id, kind, sku_id, qty, status, amount, payment_request, created_at]
+      properties:
+        order_id: { type: string }
+        kind: { type: string, enum: [pool_commitment, direct] }
+        sku_id: { type: string }
+        qty: { type: integer }
+        pool_id: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [awaiting_payment, awaiting_approval, paid, blocked, denied, expired, failed]
+        amount: { $ref: "#/components/schemas/Money" }
+        payment_request: { $ref: "#/components/schemas/PaymentRequest" }
+        intent_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    RecordPaymentRequest:
+      type: object
+      required: [intent_id]
+      properties:
+        intent_id: { type: string }
