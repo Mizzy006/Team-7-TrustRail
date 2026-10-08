@@ -128,6 +128,8 @@ def reseed(db: Session, seed: dict[str, Any] | None = None) -> None:
             )
         )
 
+    db.flush()
+
     # History payments (do NOT count toward caps)
     rng = random.Random(42)
     for hist in seed.get("payee_history", []):
