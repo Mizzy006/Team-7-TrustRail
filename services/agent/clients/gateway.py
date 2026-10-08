@@ -9,11 +9,13 @@ Typed client wrapper for calling MandatePay Gateway endpoints:
 
 import requests
 from typing import Dict, Any, Optional
+from config import GATEWAY_URL, AGENT_KEY, OWNER_TOKEN, DEMO_MODE
 
 class GatewayClient:
-    def __init__(self, base_url: str = "http://localhost:8001", agent_key: str = "key_agent_restock"):
+    def __init__(self, base_url: str = GATEWAY_URL, agent_key: str = AGENT_KEY, owner_token: str = OWNER_TOKEN):
         self.base_url = base_url.rstrip("/")
         self.agent_key = agent_key
+        self.owner_token = owner_token
 
     def _headers(self, prefer_example: Optional[str] = None) -> Dict[str, str]:
         headers = {
@@ -27,12 +29,17 @@ class GatewayClient:
     def get_agent_mandate(self) -> Dict[str, Any]:
         url = f"{self.base_url}/v1/agent/mandate"
         try:
-            res = requests.get(url, headers=self._headers(), timeout=0.2)
+            res = requests.get(url, headers=self._headers(), timeout=10)
             if res.status_code == 200:
                 return res.json()
-            return {"error": f"HTTP {res.status_code}", "body": res.text}
-        except Exception:
-            return {"mandate_id": "mdt_01DEMO0000000000000001", "status": "active"}
+            if DEMO_MODE:
+                return {"error": f"HTTP {res.status_code}", "body": res.text}
+            res.raise_for_status()
+            raise RuntimeError(f"Gateway returned HTTP {res.status_code}")
+        except requests.RequestException:
+            if not DEMO_MODE:
+                raise
+            return {"mandate_id": "mdt_01DEMO0000000000000001", "status": "active", "simulated": True}
 
     def request_payment(
         self,
@@ -61,11 +68,18 @@ class GatewayClient:
             payload["destination"] = destination
 
         try:
-            res = requests.post(url, json=payload, headers=self._headers(prefer_example), timeout=0.2)
+            res = requests.post(url, json=payload, headers=self._headers(prefer_example), timeout=10)
             if res.status_code in [200, 201]:
                 return res.json()
-        except Exception:
-            pass
+            if not DEMO_MODE:
+                res.raise_for_status()
+                raise RuntimeError(f"Gateway returned HTTP {res.status_code}: {res.text}")
+        except requests.RequestException:
+            if not DEMO_MODE:
+                raise
+
+        if not DEMO_MODE:
+            raise RuntimeError("Gateway request failed; simulation is disabled")
 
         # Policy decision simulation (matches seed.json default mandate)
         # auto_max_minor = 5,000,000 (₦50,000), hard_max_minor = 15,000,000 (₦150,000)
@@ -134,7 +148,29 @@ class GatewayClient:
     def get_payment_intent(self, intent_id: str) -> Dict[str, Any]:
         url = f"{self.base_url}/v1/payment-intents/{intent_id}"
         try:
-            res = requests.get(url, headers=self._headers(), timeout=0.2)
+            res = requests.get(url, headers=self._headers(), timeout=10)
+            res.raise_for_status()
             return res.json()
-        except Exception:
+        except requests.RequestException:
+            if not DEMO_MODE:
+                raise
             return {"intent_id": intent_id, "status": "executed", "simulated": True}
+
+    def get_kill_switch(self) -> Dict[str, Any]:
+        res = requests.get(
+            f"{self.base_url}/v1/kill-switch",
+            headers={"Authorization": f"Bearer {self.owner_token}"},
+            timeout=10,
+        )
+        res.raise_for_status()
+        return res.json()
+
+    def set_kill_switch(self, active: bool, reason: Optional[str] = None) -> Dict[str, Any]:
+        res = requests.put(
+            f"{self.base_url}/v1/kill-switch",
+            json={"active": active, "reason": reason},
+            headers={"Authorization": f"Bearer {self.owner_token}", "Content-Type": "application/json"},
+            timeout=10,
+        )
+        res.raise_for_status()
+        return res.json()

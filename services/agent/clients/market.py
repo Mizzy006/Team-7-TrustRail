@@ -11,9 +11,10 @@ Typed client wrapper for calling Market service endpoints:
 
 import requests
 from typing import Dict, Any, List, Optional
+from config import MARKET_URL, OWNER_TOKEN, DEMO_MODE
 
 class MarketClient:
-    def __init__(self, base_url: str = "http://localhost:8002", token: str = "tok_owner_ada"):
+    def __init__(self, base_url: str = MARKET_URL, token: str = OWNER_TOKEN):
         self.base_url = base_url.rstrip("/")
         self.token = token
 
@@ -26,21 +27,27 @@ class MarketClient:
     def get_products(self) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/v1/products"
         try:
-            res = requests.get(url, headers=self._headers(), timeout=0.2)
+            res = requests.get(url, headers=self._headers(), timeout=10)
+            res.raise_for_status()
             if res.status_code == 200:
                 return res.json().get("products", [])
             return []
-        except Exception:
+        except requests.RequestException:
+            if not DEMO_MODE:
+                raise
             return []
 
     def get_inventory(self) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/v1/inventory"
         try:
-            res = requests.get(url, headers=self._headers(), timeout=0.2)
+            res = requests.get(url, headers=self._headers(), timeout=10)
+            res.raise_for_status()
             if res.status_code == 200:
                 return res.json().get("inventory", [])
             return []
-        except Exception:
+        except requests.RequestException:
+            if not DEMO_MODE:
+                raise
             return [
                 {"sku_id": "sku_noodles_carton", "sku_name": "Instant Noodles", "stock": 12, "days_cover": 2.4, "reorder_point": 25},
                 {"sku_id": "sku_rice_50kg", "sku_name": "Parboiled Rice 50kg", "stock": 4, "days_cover": 1.8, "reorder_point": 10},
@@ -50,11 +57,14 @@ class MarketClient:
     def get_pools(self) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/v1/pools"
         try:
-            res = requests.get(url, headers=self._headers(), timeout=0.2)
+            res = requests.get(url, headers=self._headers(), timeout=10)
+            res.raise_for_status()
             if res.status_code == 200:
                 return res.json().get("pools", [])
             return []
-        except Exception:
+        except requests.RequestException:
+            if not DEMO_MODE:
+                raise
             return [
                 {
                     "pool_id": "pool_noodles_1",

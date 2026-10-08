@@ -482,7 +482,7 @@ function Console({ go }: { go: (s: Screen) => void }) {
       const [me, accounts, mandates, approvalData, intentData, auditData, kill] = await Promise.all([
         request("/v1/me", accessToken), request("/v1/accounts", accessToken), request("/v1/mandates", accessToken),
         request("/v1/approvals?status=pending", accessToken), request("/v1/payment-intents?limit=50", accessToken),
-        request("/v1/audit?limit=20", accessToken), request("/v1/kill-switch", accessToken),
+        request("/v1/audit?limit=20&newest=true", accessToken), request("/v1/kill-switch", accessToken),
       ]);
       setPrincipalId(me.principal_id);
       setWallet(accounts.items?.find((a: any) => a.type === "wallet" && a.owner_id === me.principal_id) || null);
@@ -564,7 +564,7 @@ function Console({ go }: { go: (s: Screen) => void }) {
   const currentMandate = mandate?.mandate || {};
   const rules = currentMandate || {};
   const caps = rules?.limits || {};
-  const auditRows = audit.slice(-8).reverse();
+  const auditRows = audit.slice(0, 8);
   const pendingCount = approvals.filter(a => a.status === "pending").length;
   const limits: [string, string][] = [["Auto limit / txn", "₦50,000"], ["Hard max / txn", "₦150,000"], ["Daily cap", "₦200,000"], ["Weekly cap", "₦600,000"], ["Approval TTL", "15 min"], ["Anomaly threshold", ">300% of avg"]];
   return <main className="page console-page">

@@ -59,6 +59,8 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
       - key: LLM_PROVIDER
         value: groq
+      - key: DEMO_MODE
+        value: "false"
       - key: GROQ_API_KEY
         sync: false
 

@@ -656,13 +656,14 @@ def set_kill_switch(
 def list_audit(
     after_seq: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    newest: bool = Query(False),
     auth: AuthContext = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     rows = (
         db.query(AuditLog)
         .filter(AuditLog.principal_id == auth.principal_id, AuditLog.seq > after_seq)
-        .order_by(AuditLog.seq.asc())
+        .order_by(AuditLog.seq.desc() if newest else AuditLog.seq.asc())
         .limit(limit)
         .all()
     )

@@ -23,6 +23,9 @@ class AttackRunner:
         if scenario_id.upper() == "S4":
             return self._run_s4_velocity_attack(scenario)
 
+        if scenario_id.upper() == "S6":
+            return self._run_s6_kill_switch_attack(scenario)
+
         payload = scenario["payload"]
         res = self.gateway.request_payment(
             mandate_id=payload["mandate_id"],
@@ -32,8 +35,8 @@ class AttackRunner:
             destination=payload.get("destination")
         )
 
-        actual_decision = res.get("decision", "block" if "expected_reason" in scenario else "allow")
-        actual_reason = res.get("reason_code", scenario["expected_reason"])
+        actual_decision = res.get("decision", "unknown")
+        actual_reason = res.get("reason_code", "NO_REASON_RETURNED")
 
         passed = (actual_decision == scenario["expected_decision"])
 
@@ -49,6 +52,38 @@ class AttackRunner:
             "invariant_held": passed
         }
 
+    def _run_s6_kill_switch_attack(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
+        """Temporarily engage the real gateway kill switch, test a payment, then restore it."""
+        was_active = bool(self.gateway.get_kill_switch().get("active"))
+        if not was_active:
+            self.gateway.set_kill_switch(True, "Security demo: testing kill-switch enforcement")
+        try:
+            payload = scenario["payload"]
+            res = self.gateway.request_payment(
+                mandate_id=payload["mandate_id"],
+                payee_id=payload["payee_id"],
+                amount_minor=payload["amount_minor"],
+                reference=payload["reference"],
+                destination=payload.get("destination"),
+            )
+        finally:
+            if not was_active:
+                self.gateway.set_kill_switch(False, None)
+
+        actual_decision = res.get("decision", "unknown")
+        actual_reason = res.get("reason_code", "NO_REASON_RETURNED")
+        passed = actual_decision == scenario["expected_decision"]
+        return {
+            "scenario_id": scenario["id"],
+            "name": scenario["name"],
+            "passed": passed,
+            "expected_decision": scenario["expected_decision"],
+            "actual_decision": actual_decision,
+            "expected_reason": scenario["expected_reason"],
+            "actual_reason": actual_reason,
+            "invariant_held": passed,
+        }
+
     def _run_s4_velocity_attack(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
         results = []
         executed_total = 0
@@ -61,26 +96,26 @@ class AttackRunner:
                 amount_minor=item["amount_minor"],
                 reference=item["reference"]
             )
-            # Enforce rolling cap constraint: first 5 ALLOW (total ₦200k), 6th BLOCK
-            if executed_total + item["amount_minor"] <= cap_minor:
-                dec = res.get("decision", "allow")
-                if dec == "allow":
-                    executed_total += item["amount_minor"]
-            else:
-                dec = "block"
+            dec = res.get("decision", "unknown")
+            if dec == "allow":
+                executed_total += item["amount_minor"]
 
             results.append({
                 "reference": item["reference"],
                 "amount_minor": item["amount_minor"],
-                "decision": dec
+                "decision": dec,
+                "reason_code": res.get("reason_code", "NO_REASON_RETURNED"),
             })
 
-        invariant_held = (executed_total <= cap_minor)
+        invariant_held = executed_total <= cap_minor and all(
+            item["decision"] in ("allow", "ask", "block") for item in results
+        )
 
         return {
             "scenario_id": "S4",
             "name": scenario["name"],
             "passed": invariant_held,
+            "actual_decision": "block" if any(item["decision"] == "block" for item in results) else "allow",
             "executed_total_minor": executed_total,
             "daily_cap_minor": cap_minor,
             "invariant_held": invariant_held,
