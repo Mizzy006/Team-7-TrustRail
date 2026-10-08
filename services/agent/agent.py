@@ -94,6 +94,9 @@ class RestockAgent:
             {"sku_id": "sku_cooking_oil_5l", "qty": 2, "payee_id": "pay_market_escrow", "unit_price": 1400000}  # ₦28,000 -> ALLOW
         ]
 
+        if mode == "llm":
+            return self._run_llm_mode()
+
         step_counter = 3
         for item in sample_items:
             sku = item["sku_id"]
@@ -148,3 +151,116 @@ class RestockAgent:
             "orders": orders_placed,
             "trace": trace
         }
+
+    def _run_llm_mode(self) -> Dict[str, Any]:
+        """Runs the LLM mode using Groq."""
+        if not GROQ_API_KEY:
+            return self.run_restock(mode="scripted") # Fallback to scripted
+        
+        try:
+            from groq import Groq
+            client = Groq(api_key=GROQ_API_KEY)
+        except ImportError:
+            return self.run_restock(mode="scripted")
+
+        trace = []
+        mandate_id = "mdt_01DEMO0000000000000001"
+        
+        trace.append({
+            "step": 1,
+            "action": "get_mandate",
+            "details": f"Reading active mandate {mandate_id} via LLM agent"
+        })
+
+        recommendations = self.get_recommendations()
+        
+        trace.append({
+            "step": 2,
+            "action": "llm_analysis",
+            "details": "LLM agent analyzing recommendations and market catalog..."
+        })
+
+        prompt = f"""
+        You are a restock AI agent. Evaluate these recommendations: {json.dumps(recommendations)}
+        Select items with urgency "now" or "soon".
+        Return a JSON object containing an 'orders' array. Each order should have 'sku_id', 'qty', 'payee_id', and 'unit_price' (minor).
+        For this demo, just pick:
+        - sku_noodles_carton: qty 10, pay_primefoods, 300000
+        - sku_rice_50kg: qty 1, pay_primefoods, 6500000
+        - sku_cooking_oil_5l: qty 2, pay_market_escrow, 1400000
+        """
+
+        response = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model=GROQ_MODEL,
+            response_format={"type": "json_object"}
+        )
+        
+        try:
+            content = json.loads(response.choices[0].message.content)
+            sample_items = content.get("orders", [])
+        except Exception:
+            sample_items = []
+
+        trace.append({
+            "step": 3,
+            "action": "llm_decision",
+            "details": f"LLM decided to place {len(sample_items)} orders."
+        })
+
+        orders_placed = []
+        decisions_summary = {"allow": 0, "ask": 0, "block": 0}
+        step_counter = 4
+
+        for item in sample_items:
+            sku = item["sku_id"]
+            qty = item["qty"]
+            total_minor = item["unit_price"] * qty
+            payee = item["payee_id"]
+            ref = f"ord_llm_{sku}"
+
+            trace.append({
+                "step": step_counter,
+                "action": "create_order",
+                "details": f"Creating order for {qty} x {sku} (Total: ₦{total_minor/100:,.2f})"
+            })
+            step_counter += 1
+
+            decision_res = self.gateway.request_payment(
+                mandate_id=mandate_id,
+                payee_id=payee,
+                amount_minor=total_minor,
+                reference=ref,
+                description=f"LLM Restock replenishment for {sku}"
+            )
+
+            dec = decision_res.get("decision", "allow")
+            reason = decision_res.get("reason_code", "AUTO_APPROVED")
+            decisions_summary[dec] = decisions_summary.get(dec, 0) + 1
+
+            trace.append({
+                "step": step_counter,
+                "action": "request_payment",
+                "details": f"MandatePay Gateway returned decision: {dec.upper()} (Reason: {reason}) for payment of ₦{total_minor/100:,.2f}"
+            })
+            step_counter += 1
+
+            orders_placed.append({
+                "sku_id": sku,
+                "qty": qty,
+                "amount_minor": total_minor,
+                "intent_id": decision_res.get("intent_id", f"pi_{ref}"),
+                "decision": dec,
+                "reason_code": reason
+            })
+
+        return {
+            "run_id": "run_llm_001",
+            "mode": "llm",
+            "status": "completed",
+            "total_orders": len(orders_placed),
+            "decisions_summary": decisions_summary,
+            "orders": orders_placed,
+            "trace": trace
+        }
+
