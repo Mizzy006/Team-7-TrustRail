@@ -70,6 +70,7 @@ def reseed(db: Session, seed: dict[str, Any] | None = None) -> None:
                 created_at=now,
             )
         )
+    db.flush()
 
     for agent in seed.get("agents", []):
         db.add(
