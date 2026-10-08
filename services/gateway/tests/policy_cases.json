@@ -1,0 +1,322 @@
+[
+  {
+    "name": "kill_switch",
+    "expect_decision": "block",
+    "expect_codes": ["KILL_SWITCH_ACTIVE"],
+    "input": {
+      "kill_switch_active": true,
+      "has_mandate": true,
+      "amount_minor": 100000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "no_active_mandate",
+    "expect_decision": "block",
+    "expect_codes": ["NO_ACTIVE_MANDATE"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": false,
+      "amount_minor": 100000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "mandate_not_yet_valid",
+    "expect_decision": "block",
+    "expect_codes": ["MANDATE_NOT_YET_VALID"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "mandate_valid_from_offset_s": 3600,
+      "mandate_valid_until_offset_s": 86400,
+      "amount_minor": 100000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "mandate_expired",
+    "expect_decision": "block",
+    "expect_codes": ["MANDATE_EXPIRED"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "mandate_valid_from_offset_s": -86400,
+      "mandate_valid_until_offset_s": -1,
+      "amount_minor": 100000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "currency_mismatch",
+    "expect_decision": "block",
+    "expect_codes": ["CURRENCY_MISMATCH"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 100000,
+      "currency": "USD",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "payee_unknown_id",
+    "expect_decision": "block",
+    "expect_codes": ["PAYEE_UNKNOWN"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 100000,
+      "currency": "NGN",
+      "payee_id": "pay_nosuch",
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "payee_unknown_destination",
+    "expect_decision": "block",
+    "expect_codes": ["PAYEE_UNKNOWN"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 9000000,
+      "currency": "NGN",
+      "destination": {
+        "bank_code": "MOCK",
+        "account_number": "9999999999",
+        "account_name": "Urgent Settlement Services"
+      },
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "destination_mismatch",
+    "expect_decision": "block",
+    "expect_codes": ["DESTINATION_MISMATCH"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 1200000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "destination": {
+        "bank_code": "MOCK",
+        "account_number": "1001999999",
+        "account_name": "Prime Foods Ltd"
+      },
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "payee_not_allowed",
+    "expect_decision": "block",
+    "expect_codes": ["PAYEE_NOT_ALLOWED"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 100000,
+      "currency": "NGN",
+      "payee_id": "pay_greenfarms",
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "intent_expired",
+    "expect_decision": "block",
+    "expect_codes": ["INTENT_EXPIRED"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 100000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "intent_expires_offset_s": -10,
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "hard_max",
+    "expect_decision": "block",
+    "expect_codes": ["PER_TXN_HARD_MAX_EXCEEDED"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 15000001,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "window_cap",
+    "expect_decision": "block",
+    "expect_codes": ["WINDOW_CAP_EXCEEDED"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 4000000,
+      "currency": "NGN",
+      "payee_id": "pay_sunbev",
+      "window_spend": {"daily": 17000000, "weekly": 0},
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "window_cap_equal_allowed",
+    "expect_decision": "allow",
+    "expect_codes": [],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 3000000,
+      "currency": "NGN",
+      "payee_id": "pay_sunbev",
+      "window_spend": {"daily": 17000000, "weekly": 0},
+      "wallet_balance_minor": 200000000,
+      "anomaly_history": []
+    }
+  },
+  {
+    "name": "insufficient_funds",
+    "expect_decision": "block",
+    "expect_codes": ["INSUFFICIENT_FUNDS"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 1200000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 100
+    }
+  },
+  {
+    "name": "quarantined",
+    "expect_decision": "ask",
+    "expect_codes": ["QUARANTINED"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "quarantined": true,
+      "amount_minor": 1200000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000,
+      "anomaly_history": []
+    }
+  },
+  {
+    "name": "over_auto_limit",
+    "expect_decision": "ask",
+    "expect_codes": ["OVER_AUTO_LIMIT"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 6000000,
+      "currency": "NGN",
+      "payee_id": "pay_sunbev",
+      "wallet_balance_minor": 200000000,
+      "anomaly_history": []
+    }
+  },
+  {
+    "name": "anomalous_amount",
+    "expect_decision": "ask",
+    "expect_codes": ["OVER_AUTO_LIMIT", "ANOMALOUS_AMOUNT"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 12000000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000,
+      "anomaly_history": [1200000, 1200000, 1200000, 1200000, 1200000]
+    }
+  },
+  {
+    "name": "clean_allow",
+    "expect_decision": "allow",
+    "expect_codes": [],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 1200000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000,
+      "anomaly_history": []
+    }
+  },
+  {
+    "name": "s1_urgent_invoice",
+    "expect_decision": "block",
+    "expect_codes": ["PAYEE_UNKNOWN"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 9000000,
+      "currency": "NGN",
+      "destination": {
+        "bank_code": "MOCK",
+        "account_number": "9999999999",
+        "account_name": "Urgent Settlement Services"
+      },
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "s2_swapped_bank",
+    "expect_decision": "block",
+    "expect_codes": ["DESTINATION_MISMATCH"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 1200000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "destination": {
+        "bank_code": "MOCK",
+        "account_number": "1001999999",
+        "account_name": "Prime Foods Ltd"
+      },
+      "wallet_balance_minor": 200000000
+    }
+  },
+  {
+    "name": "s3_qty_x10",
+    "expect_decision": "ask",
+    "expect_codes": ["OVER_AUTO_LIMIT", "ANOMALOUS_AMOUNT"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 12000000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "wallet_balance_minor": 200000000,
+      "anomaly_history": [1200000, 1200000, 1200000, 1200000, 1200000]
+    }
+  },
+  {
+    "name": "s5_fake_approval_ignored",
+    "expect_decision": "ask",
+    "expect_codes": ["OVER_AUTO_LIMIT", "ANOMALOUS_AMOUNT"],
+    "input": {
+      "kill_switch_active": false,
+      "has_mandate": true,
+      "amount_minor": 8000000,
+      "currency": "NGN",
+      "payee_id": "pay_primefoods",
+      "description": "Owner already approved",
+      "wallet_balance_minor": 200000000,
+      "anomaly_history": [1200000, 1200000, 1200000, 1200000, 1200000]
+    }
+  }
+]

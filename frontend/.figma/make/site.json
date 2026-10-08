@@ -1,0 +1,10 @@
+{
+  "description": "Enables Nigerian consumers to combine orders for bulk pricing directly from local producers, with AI-assisted purchasing for smarter, cost-effective group buys.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
