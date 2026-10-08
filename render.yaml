@@ -10,7 +10,7 @@ services:
     name: gateway
     env: docker
     plan: free
-    dockerContext: .
+    dockerContext: ./services/gateway
     dockerfilePath: ./services/gateway/Dockerfile
     envVars:
       - key: PORT
@@ -25,7 +25,7 @@ services:
     name: market
     env: docker
     plan: free
-    dockerContext: .
+    dockerContext: ./services/market
     dockerfilePath: ./services/market/Dockerfile
     envVars:
       - key: PORT
@@ -40,7 +40,7 @@ services:
     name: agent
     env: docker
     plan: free
-    dockerContext: .
+    dockerContext: ./services/agent
     dockerfilePath: ./services/agent/Dockerfile
     envVars:
       - key: PORT
