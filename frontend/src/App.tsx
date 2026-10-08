@@ -63,6 +63,7 @@ const oilImage =
   "https://images.unsplash.com/photo-1771576774943-3433ed2239f6?auto=format&fit=crop&w=900&q=85";
 const tomatoImage =
   "https://images.unsplash.com/photo-1611754349119-9516a4e426dd?auto=format&fit=crop&w=900&q=85";
+const agentBase = (import.meta as any).env?.VITE_AGENT_URL || ((import.meta as any).env?.DEV ? "http://localhost:8003" : "https://agent-2v5n.onrender.com");
 
 function Icon({ name, size = 20, className = "" }: { name: IconName; size?: number; className?: string }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -251,10 +252,18 @@ function Processing({ go, ai = false }: { go: (s: Screen) => void; ai?: boolean 
       return () => clearTimeout(timer); 
     }
   }, [go, ai]);
-  return <main className="page state-page"><div className="processing-mark"><span /><span /><Icon name="shield" size={31} /></div><Badge tone="neutral">SECURE PAYMENT</Badge><h1>Processing payment</h1><p>Securely processing your approved payment…</p><div className="state-detail"><p><span>Order ID</span><strong>MM-10482</strong></p><p><span>Amount</span><strong>{ai ? "₦90,000" : "₦92,000"}</strong></p><p><span>Payment provider</span><strong>Wema</strong></p></div><small>Please don’t close this screen.</small></main>;
+  return <main className="page state-page"><div className="processing-mark"><span /><span /><Icon name="shield" size={31} /></div><Badge tone="neutral">{ai ? "SCRIPTED AGENT RUN" : "SECURE PAYMENT"}</Badge><h1>{ai ? "Running restock agent" : "Processing payment"}</h1><p>{ai ? "The agent is submitting its restock plan to the MandatePay Gateway for policy decisions." : "Securely processing your approved payment…"}</p><div className="state-detail"><p><span>{ai ? "Mode" : "Order ID"}</span><strong>{ai ? "Scripted" : "MM-10482"}</strong></p><p><span>{ai ? "Payment decisions" : "Amount"}</span><strong>{ai ? "Gateway policy" : "₦92,000"}</strong></p><p><span>{ai ? "Service" : "Payment provider"}</span><strong>{ai ? "MandatePay Gateway" : "Wema"}</strong></p></div><small>{ai ? "Waiting for the agent service response…" : "Please don’t close this screen."}</small></main>;
 }
 
 function Success({ go, ai = false, aiData = null }: { go: (s: Screen) => void; ai?: boolean; aiData?: any }) {
+  if (ai && aiData?.error) {
+    return <main className="page state-page success-page"><div className="success-check" style={{ background: "#fee2e2", color: "#dc2626" }}><Icon name="x" size={38} /></div><Badge tone="red">RESTOCK FAILED</Badge><h1>Agent run did not complete</h1><p>{aiData.error}</p><Button className="full-button" onClick={() => go("ai")} icon="back">Back to MandatePay AI</Button></main>;
+  }
+  if (ai && aiData) {
+    const summary = aiData.summary || aiData.decisions_summary || {};
+    const orders = aiData.orders || [];
+    return <main className="page narrow-page state-page success-page"><div className="success-check"><Icon name="check" size={38} /></div><Badge>RESTOCK RUN COMPLETE · {String(aiData.mode || "scripted").toUpperCase()}</Badge><h1>Gateway decisions received</h1><p>The agent submitted its restock plan. Each payment follows the active mandate and gateway decision.</p><div className="receipt-card"><div className="summary-lines"><p><span>Run ID</span><strong>{aiData.run_id || "—"}</strong></p><p><span>Allowed</span><strong>{summary.allow ?? 0}</strong></p><p><span>Awaiting owner approval</span><strong>{summary.ask ?? 0}</strong></p><p><span>Blocked</span><strong>{summary.block ?? 0}</strong></p></div></div>{orders.length > 0 && <div className="orders-list">{orders.map((order: any) => <article className="order-card" key={order.intent_id || order.reference}><div className="audit-main"><strong>{order.sku_id}</strong><Badge tone={order.decision === "allow" ? "green" : order.decision === "ask" ? "amber" : "red"}>{String(order.decision || "unknown").toUpperCase()}</Badge></div><p className="producer">{order.reason_code || order.intent_id || "Gateway decision returned"}</p></article>)}</div>}<Button className="full-button" onClick={() => go("console")} icon="shield">Review Owner Console</Button><Button className="full-button" variant="ghost" onClick={() => go("home")}>Back to home</Button></main>;
+  }
   const isBlock = aiData?.summary?.block > 0;
   
   if (isBlock) {
@@ -324,26 +333,35 @@ function BuyingRules() {
 }
 
 function AIApproval({ go, setAiData }: { go: (s: Screen) => void, setAiData?: any }) {
+  const [mode, setMode] = useState<"scripted" | "llm">("scripted");
   const handleApprove = async () => {
     go("ai-processing");
     try {
-      // Connect to the AI Agent Backend
-      const res = await fetch("http://localhost:8003/agent/v1/restock/runs", {
+      const res = await fetch(`${agentBase}/agent/v1/restock/runs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "scripted" })
+        body: JSON.stringify({ mode })
       });
-      const data = await res.json();
-      if (setAiData) setAiData(data);
-      // Wait for dramatic effect
-      setTimeout(() => go("ai-success"), 1500);
+      const initial = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(initial.detail || `Agent returned HTTP ${res.status}`);
+      let run = initial;
+      if (initial.run_id) {
+        const details = await fetch(`${agentBase}/agent/v1/restock/runs/${encodeURIComponent(initial.run_id)}`);
+        if (details.ok) {
+          const detailData = await details.json();
+          run = { ...initial, ...detailData, summary: initial.summary || detailData.decisions_summary };
+        }
+      }
+      if (setAiData) setAiData(run);
+      go("ai-success");
     } catch (e) {
-      console.error("Backend link failed", e);
-      setTimeout(() => go("ai-success"), 1500);
+      if (setAiData) setAiData({ error: e instanceof Error ? `${e.message}. Confirm the Render agent is running and has an active gateway mandate.` : "Could not reach the agent service." });
+      go("ai-success");
     }
   };
 
-  return <main className="page narrow-page"><AppHeader back onBack={() => go("ai")} title="Purchase approval" /><section className="approval-hero"><span className="ai-orb large"><Icon name="sparkles" size={28} /></span><Badge tone="amber">ACTION REQUIRED</Badge><h1>MandatePay found a match</h1><p>This opportunity meets all your buying rules. Review and approve the purchase.</p></section>
+  return <main className="page narrow-page"><AppHeader back onBack={() => go("ai")} title="Purchase approval" /><section className="approval-hero"><span className="ai-orb large"><Icon name="sparkles" size={28} /></span><Badge tone="amber">ACTION REQUIRED</Badge><h1>MandatePay found a match</h1><p>Choose the agent mode, then submit its restock plan to the gateway.</p></section>
+    <section className="planner-mode"><span>Agent mode</span><div><button type="button" className={mode === "scripted" ? "active" : ""} onClick={() => setMode("scripted")}>Scripted</button><button type="button" className={mode === "llm" ? "active" : ""} onClick={() => setMode("llm")}>Groq LLM</button></div><small>{mode === "scripted" ? "Deterministic demo plan · no LLM key required" : "Requires GROQ_API_KEY on the Render agent service"}</small></section>
     <section className="rule-match"><div className="rule-match-head"><span>Your buying rule</span><Badge><Icon name="check" size={12} /> 6/6 MATCH</Badge></div><div className="match-list">{["2 bags of rice", "Under ₦100,000", "Verified producer", "Within 10km", "Rating above 4.5", "Delivery within 3 days"].map((x) => <p key={x}><Icon name="check" size={14} />{x}</p>)}</div></section>
     <section className="matched-product"><div className="summary-product"><img src={riceImage} alt="Rice" /><div><Badge>BEST MATCH</Badge><h3>Premium Long Grain Rice</h3><p>GreenFields Farms ✓ · 7km</p></div></div><div className="purchase-math"><p><span>₦45,000 × 2 bags</span><strong>₦90,000</strong></p><p><span>Potential savings</span><strong className="green-text">₦14,000</strong></p></div></section>
     <div className="approval-note"><Icon name="shield" /><p>MandatePay will initiate payment through your approved Wema method only after you approve.</p></div>
@@ -406,6 +424,17 @@ function base64Url(bytes: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
+function canonicalJson(value: any): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+}
+
+async function signCanonicalObject(privateKey: CryptoKey, value: unknown): Promise<string> {
+  const signature = await crypto.subtle.sign("Ed25519", privateKey, new TextEncoder().encode(canonicalJson(value)));
+  return base64Url(signature);
+}
+
 async function createOwnerSigningKey(): Promise<OwnerSigningKey> {
   if (!globalThis.crypto?.subtle || !globalThis.indexedDB) throw new Error("This browser cannot securely store an owner signing key.");
   const generated = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
@@ -427,6 +456,7 @@ function Console({ go }: { go: (s: Screen) => void }) {
   const [error, setError] = useState("");
   const [wallet, setWallet] = useState<any>(null);
   const [mandate, setMandate] = useState<any>(null);
+  const [principalId, setPrincipalId] = useState("");
   const [approvals, setApprovals] = useState<any[]>([]);
   const [intents, setIntents] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[]>([]);
@@ -454,8 +484,9 @@ function Console({ go }: { go: (s: Screen) => void }) {
         request("/v1/approvals?status=pending", accessToken), request("/v1/payment-intents?limit=50", accessToken),
         request("/v1/audit?limit=20", accessToken), request("/v1/kill-switch", accessToken),
       ]);
+      setPrincipalId(me.principal_id);
       setWallet(accounts.items?.find((a: any) => a.type === "wallet" && a.owner_id === me.principal_id) || null);
-      setMandate(mandates.items?.find((m: any) => m.status === "active") || mandates.items?.[0] || null);
+      setMandate(mandates.items?.find((m: any) => m.status === "active") || null);
       setApprovals(approvalData.items || []); setIntents(intentData.items || []); setAudit(auditData.items || []);
       setKillSwitch(kill); setConnected(true); sessionStorage.setItem("trustrail_owner_token", accessToken);
       try {
@@ -498,6 +529,37 @@ function Console({ go }: { go: (s: Screen) => void }) {
     catch (e) { setError(e instanceof Error ? e.message : "Could not update kill switch"); }
     finally { setBusyId(""); }
   };
+  const createDemoMandate = async () => {
+    setBusyId("mandate"); setError("");
+    try {
+      if (!signingKeyId) throw new Error(keyError || "Connect with a browser that supports Ed25519 signing first.");
+      const key = await readSigningKey(signingKeyId);
+      if (!key) throw new Error("The registered browser signing key is unavailable. Disconnect and reconnect to register a new one.");
+      const now = new Date();
+      const stamp = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
+      const body = {
+        schema_version: "mandatepay/mandate/v1",
+        mandate_id: "mdt_01DEMO0000000000000001",
+        principal_id: principalId,
+        agent_id: "agt_restock",
+        key_id: signingKeyId,
+        supersedes: null,
+        issued_at: stamp(now),
+        valid_from: stamp(now),
+        valid_until: stamp(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)),
+        currency: "NGN",
+        purpose: "Restock shop inventory from approved suppliers and pools (cap ₦200,000/day)",
+        payees: ["pay_primefoods", "pay_sunbev", "pay_market_escrow"],
+        limits: { per_txn: { auto_max_minor: 5000000, hard_max_minor: 15000000 }, windows: [{ name: "daily", seconds: 86400, cap_minor: 20000000 }, { name: "weekly", seconds: 604800, cap_minor: 60000000 }] },
+        ask_rules: { approval_ttl_seconds: 900, anomaly: { enabled: true, history_count: 5, percent_of_average: 300 } },
+        quarantine: { blocked_attempts: 3, window_seconds: 600 },
+      };
+      const signature = await signCanonicalObject(key.private_key, body);
+      await request("/v1/mandates", token, { method: "POST", body: JSON.stringify({ mandate: body, signature: { alg: "Ed25519", key_id: signingKeyId, value: signature } }) });
+      await loadConsole(token);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not create the signed demo mandate"); }
+    finally { setBusyId(""); }
+  };
   const money = (minor?: number, currency = "NGN") => typeof minor === "number" ? new Intl.NumberFormat("en-NG", { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100) : "—";
   const currentMandate = mandate?.mandate || {};
   const rules = currentMandate || {};
@@ -523,7 +585,7 @@ function Console({ go }: { go: (s: Screen) => void }) {
     </section>
     <section className="kill-switch-card">
       <div className="kill-switch-row">
-        <span className={`round-icon ${killSwitch ? "red" : "green"}`}><Icon name="zap" /></span>
+        <span className={`round-icon ${killSwitch?.active ? "red" : "green"}`}><Icon name="zap" /></span>
         <div><h3>Emergency Kill Switch</h3><p>{killSwitch?.active ? "All agent payments BLOCKED" : connected ? "Agent operating normally" : "Connect to manage the gateway switch"}</p></div>
         <button type="button" aria-label={killSwitch?.active ? "Deactivate kill switch" : "Activate kill switch"} disabled={!connected || busyId === "kill"} className={`toggle ${killSwitch?.active ? "on" : ""}`} onClick={() => void updateKillSwitch(!killSwitch?.active)} style={killSwitch?.active ? {background: "#dc2626"} : {}}><span /></button>
       </div>
@@ -545,6 +607,7 @@ function Console({ go }: { go: (s: Screen) => void }) {
         })}</div>
         <div className="mandate-payees-list"><h3>Approved Payees</h3>{(currentMandate?.payees || []).map((entry: any) => <div className="payee-row" key={typeof entry === "string" ? entry : entry.payee_id}><span className="verified"><Icon name="check" size={10} /></span><strong>{typeof entry === "string" ? entry : entry.name || entry.payee_id}</strong><small>{typeof entry === "string" ? entry : entry.payee_id}</small></div>)}{mandate && !currentMandate?.payees?.length && <p className="empty-console">No approved payees are listed on the active mandate.</p>}</div>
       </div>
+      {connected && !mandate && <div className="mandate-setup-panel"><div><strong>No active mandate on this gateway</strong><p>Create and sign the project’s default seven-day demo mandate to enable scripted restock decisions.</p></div><Button disabled={busyId === "mandate" || !signingKeyId} onClick={() => void createDemoMandate()}>{busyId === "mandate" ? "Signing mandate…" : "Sign & activate demo mandate"}</Button></div>}
     </section>
     <section className="section"><SectionTitle title="Pending ASK approvals" />
       <div className="audit-list">{approvals.length ? approvals.map((approval: any) => <article className="approval-live" key={approval.approval_id}>
@@ -584,7 +647,7 @@ function SecurityDemo({ go }: { go: (s: Screen) => void }) {
     setRunning(true);
     setRunError("");
     try {
-      const res = await fetch("http://localhost:8003/agent/v1/attacks/ALL/run", { method: "POST" });
+      const res = await fetch(`${agentBase}/agent/v1/attacks/ALL/run`, { method: "POST" });
       if (!res.ok) throw new Error(`Agent returned HTTP ${res.status}`);
       const data = await res.json();
       const mapped: Record<string, { decision: string; reasons: string[] }> = {};
@@ -640,8 +703,8 @@ function ForecastDashboard({ go }: { go: (s: Screen) => void }) {
   useEffect(() => {
     let active = true;
     Promise.all([
-      fetch("http://localhost:8003/agent/v1/forecast").then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch("http://localhost:8003/agent/v1/recommendations").then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${agentBase}/agent/v1/forecast`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${agentBase}/agent/v1/recommendations`).then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([forecastData, recommendationData]) => {
       if (!active) return;
       if (Array.isArray(forecastData)) setLiveForecasts(Object.fromEntries(forecastData.map((f: any) => [f.sku_id, (f.daily_forecast || []).map((d: any) => Number(d.qty) || 0)])));

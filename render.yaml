@@ -42,7 +42,7 @@ services:
     name: agent
     env: docker
     plan: free
-    dockerContext: ./services/agent
+    dockerContext: .
     dockerfilePath: ./services/agent/Dockerfile
     envVars:
       - key: PORT
@@ -57,6 +57,10 @@ services:
           type: web
           name: market
           envVarKey: RENDER_EXTERNAL_URL
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
 
   # 4. Frontend Static Site
   - type: web
@@ -69,4 +73,9 @@ services:
         fromService:
           type: web
           name: gateway
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: VITE_AGENT_URL
+        fromService:
+          type: web
+          name: agent
           envVarKey: RENDER_EXTERNAL_URL

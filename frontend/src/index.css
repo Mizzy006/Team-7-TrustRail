@@ -312,6 +312,7 @@ h1, h2, h3, .logo { font-family: "Manrope", sans-serif; }
 .toggle.on span { transform: translateX(19px); }
 .permission-note { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 9px; margin-top: 12px; }
 .approval-hero { text-align: center; padding: 30px 0 18px; }
+.planner-mode { display: grid; gap: 8px; margin: 0 0 14px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }.planner-mode > span { font-size: 10px; font-weight: 800; }.planner-mode > div { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 10px; background: #f2eff2; }.planner-mode button { min-height: 38px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font-size: 11px; font-weight: 700; }.planner-mode button.active { color: var(--brand-700); background: #fff; box-shadow: 0 2px 7px #26112b14; }.planner-mode small { color: var(--muted); font-size: 9px; }
 .approval-hero h1 { font-size: 27px; margin: 13px 0 7px; }
 .approval-hero p { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .rule-match, .matched-product { padding: 17px; border-radius: 17px; border: 1px solid var(--line); margin-top: 13px; }
@@ -514,6 +515,7 @@ h1, h2, h3, .logo { font-family: "Manrope", sans-serif; }
 .console-action-card { width: 100%; gap: 11px; padding: 15px; text-align: left; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
 .console-action-card > div { flex: 1; }.console-action-card strong { font-size: 12px; }.console-action-card p { margin-top: 4px; color: var(--muted); font-size: 10px; }
 .mandate-purpose { display: flex; gap: 8px; align-items: center; margin: 15px 0; color: var(--muted); font-size: 11px; }
+.mandate-setup-panel { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 13px; padding: 15px; border: 1px dashed #c9a9ca; border-radius: 14px; background: #fdf8fd; }.mandate-setup-panel strong { font-size: 11px; }.mandate-setup-panel p { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .mandate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 13px; border-radius: 13px; background: #f7f8f7; }
 .mandate-grid > div { display: grid; gap: 4px; }.mandate-grid span, .payee-row small { color: var(--muted); font-size: 9px; }.mandate-grid strong { font-size: 11px; }
 .mandate-payees-list { margin-top: 16px; }.mandate-payees-list h3 { margin-bottom: 8px; font-size: 12px; }.payee-row { gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }.payee-row strong { flex: 1; font-size: 10px; }
@@ -544,4 +546,5 @@ h1, h2, h3, .logo { font-family: "Manrope", sans-serif; }
   .mandate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.payee-row { flex-wrap: wrap; }.payee-row small { margin-left: 26px; width: 100%; }
   .audit-meta { align-items: flex-start; flex-direction: column; gap: 3px; }.forecast-summary { gap: 7px; }.forecast-stat { padding: 12px 9px; }.forecast-stat strong { font-size: 19px; }.forecast-stat span { font-size: 9px; }
   .gateway-connect { grid-template-columns: 1fr; }.gateway-connect form { flex-direction: column; }.gateway-connected { flex-wrap: wrap; }.gateway-connected span { flex-basis: 100%; }.approval-live .dual-buttons { grid-template-columns: 1fr 1fr; }
+  .mandate-setup-panel { align-items: stretch; flex-direction: column; }.mandate-setup-panel .btn { width: 100%; }
 }

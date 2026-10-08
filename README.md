@@ -68,7 +68,7 @@ Copy `.env.example` to `.env`:
 cp .env.example .env
 ```
 
-The owner console calls the gateway from the browser. The deployed MandateMarket frontend (`https://mandatemarket.vercel.app`) uses the TrustRail gateway at `https://gateway-u3w0.onrender.com`; these values are wired in the frontend fallback and `render.yaml` CORS configuration. If either domain changes, update both. For local development, set `VITE_API_URL=http://localhost:8001`; local frontend origins are allowed by default. The owner bearer token is entered in the console and kept only for the browser session.
+The deployed MandateMarket frontend (`https://mandatemarket.vercel.app`) uses the TrustRail gateway at `https://gateway-u3w0.onrender.com` and the agent at `https://agent-2v5n.onrender.com`. These public service URLs are wired in the frontend fallback; the gateway CORS allowlist is in `render.yaml`. If a domain changes, update the frontend URL and allowlist. For local development, copy `frontend/.env.example` to `frontend/.env.local`. The owner bearer token is entered in the console and kept only for the browser session. After connecting, use **Sign & activate demo mandate** once to authorize the scripted scenario. Scripted mode needs no LLM key. To try Groq mode, set `GROQ_API_KEY` in the Render agent service environment; never commit the key.
 
 ### 2. Generate Synthetic Sales Data (M1 Task)
 
