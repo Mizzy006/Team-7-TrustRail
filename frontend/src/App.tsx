@@ -101,8 +101,8 @@ function Icon({ name, size = 20, className = "" }: { name: IconName; size?: numb
   return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
-function Button({ children, onClick, variant = "primary", className = "", icon }: { children: React.ReactNode; onClick?: () => void; variant?: "primary" | "secondary" | "ghost" | "dark"; className?: string; icon?: IconName }) {
-  return <button type="button" onClick={onClick} className={`btn btn-${variant} ${className}`}>{children}{icon && <Icon name={icon} size={18} />}</button>;
+function Button({ children, onClick, variant = "primary", className = "", icon, disabled = false, type = "button" }: { children: React.ReactNode; onClick?: () => void; variant?: "primary" | "secondary" | "ghost" | "dark"; className?: string; icon?: IconName; disabled?: boolean; type?: "button" | "submit" }) {
+  return <button type={type} disabled={disabled} onClick={onClick} className={`btn btn-${variant} ${className}`}>{children}{icon && <Icon name={icon} size={18} />}</button>;
 }
 
 function IconButton({ icon, onClick, label, className = "" }: { icon: IconName; onClick?: () => void; label: string; className?: string }) {
@@ -372,37 +372,162 @@ function Profile({ go }: { go: (s: Screen) => void }) {
   return <main className="page narrow-page"><AppHeader back onBack={() => go("home")} title="Profile" /><section className="profile-hero"><div className="profile-avatar">ZA</div><div><h1>Zainab Adesina</h1><p>+234 803 123 4567</p><span><Icon name="pin" size={14} /> Ikeja, Lagos</span></div><IconButton icon="edit" label="Edit profile" /></section><section className="profile-stats"><div><strong>4</strong><span>Group buys</span></div><div><strong>₦31k</strong><span>Total saved</span></div><div><strong>2</strong><span>Active rules</span></div></section><section className="profile-menu">{menu.map(([icon, title, sub]) => <button type="button" key={title} onClick={() => title === "Owner Console" ? go("console") : title === "Security Demo" ? go("security") : title === "Forecast Dashboard" ? go("forecast") : title === "My orders" ? go("orders") : title.includes("Mandate") || title.includes("rules") ? go("ai") : undefined}><span className="round-icon"><Icon name={icon} /></span><div><strong>{title}</strong><small>{sub}</small></div><Icon name="chevron" size={17} /></button>)}</section><Button className="full-button" variant="ghost">Sign out</Button></main>;
 }
 
+type OwnerSigningKey = { key_id: string; public_key: string; private_key: CryptoKey };
+
+function openSigningKeyStore(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("trustrail-owner-keys", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("keys", { keyPath: "key_id" });
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Unable to open the local signing key store"));
+  });
+}
+
+async function readSigningKey(keyId: string): Promise<OwnerSigningKey | undefined> {
+  const db = await openSigningKeyStore();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction("keys", "readonly").objectStore("keys").get(keyId);
+    request.onsuccess = () => { db.close(); resolve(request.result as OwnerSigningKey | undefined); };
+    request.onerror = () => { db.close(); reject(request.error); };
+  });
+}
+
+async function saveSigningKey(key: OwnerSigningKey): Promise<void> {
+  const db = await openSigningKeyStore();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("keys", "readwrite");
+    transaction.objectStore("keys").put(key);
+    transaction.oncomplete = () => { db.close(); resolve(); };
+    transaction.onerror = () => { db.close(); reject(transaction.error); };
+  });
+}
+
+function base64Url(bytes: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function createOwnerSigningKey(): Promise<OwnerSigningKey> {
+  if (!globalThis.crypto?.subtle || !globalThis.indexedDB) throw new Error("This browser cannot securely store an owner signing key.");
+  const generated = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const publicBytes = await crypto.subtle.exportKey("raw", generated.publicKey);
+  const privateBytes = await crypto.subtle.exportKey("pkcs8", generated.privateKey);
+  const privateKey = await crypto.subtle.importKey("pkcs8", privateBytes, { name: "Ed25519" }, false, ["sign"]);
+  const digest = await crypto.subtle.digest("SHA-256", publicBytes);
+  const keyId = `key_${Array.from(new Uint8Array(digest).slice(0, 8), b => b.toString(16).padStart(2, "0")).join("")}`;
+  const record = { key_id: keyId, public_key: base64Url(publicBytes), private_key: privateKey };
+  await saveSigningKey(record);
+  return record;
+}
+
 function Console({ go }: { go: (s: Screen) => void }) {
-  const [killSwitch, setKillSwitch] = useState(false);
+  const gatewayBase = (import.meta as any).env?.VITE_GATEWAY_URL || (import.meta as any).env?.VITE_API_URL || "http://localhost:8001";
+  const [token, setToken] = useState(() => sessionStorage.getItem("trustrail_owner_token") || "");
+  const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [wallet, setWallet] = useState<any>(null);
+  const [mandate, setMandate] = useState<any>(null);
+  const [approvals, setApprovals] = useState<any[]>([]);
+  const [intents, setIntents] = useState<any[]>([]);
+  const [audit, setAudit] = useState<any[]>([]);
+  const [signingKeyId, setSigningKeyId] = useState("");
+  const [keyError, setKeyError] = useState("");
+  const [killSwitch, setKillSwitch] = useState<any>(null);
+  const [busyId, setBusyId] = useState("");
+  const request = async (path: string, accessToken: string, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    const response = await fetch(`${gatewayBase.replace(/\/$/, "")}${path}`, {
+      ...init,
+      headers,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.detail || `Gateway returned HTTP ${response.status}`);
+    return body;
+  };
+  const loadConsole = async (accessToken: string) => {
+    setLoading(true); setError("");
+    try {
+      const [me, accounts, mandates, approvalData, intentData, auditData, kill] = await Promise.all([
+        request("/v1/me", accessToken), request("/v1/accounts", accessToken), request("/v1/mandates", accessToken),
+        request("/v1/approvals?status=pending", accessToken), request("/v1/payment-intents?limit=50", accessToken),
+        request("/v1/audit?limit=20", accessToken), request("/v1/kill-switch", accessToken),
+      ]);
+      setWallet(accounts.items?.find((a: any) => a.type === "wallet" && a.owner_id === me.principal_id) || null);
+      setMandate(mandates.items?.find((m: any) => m.status === "active") || mandates.items?.[0] || null);
+      setApprovals(approvalData.items || []); setIntents(intentData.items || []); setAudit(auditData.items || []);
+      setKillSwitch(kill); setConnected(true); sessionStorage.setItem("trustrail_owner_token", accessToken);
+      try {
+        const registeredIds = (me.keys || []).map((key: any) => key.key_id as string);
+        let signingKey: OwnerSigningKey | undefined;
+        for (const id of registeredIds) { signingKey = await readSigningKey(id); if (signingKey) break; }
+        if (!signingKey) signingKey = await createOwnerSigningKey();
+        if (!registeredIds.includes(signingKey.key_id)) {
+          await request("/v1/keys", accessToken, { method: "POST", body: JSON.stringify({ public_key: signingKey.public_key, label: "MandateMarket browser key" }) });
+        }
+        setSigningKeyId(signingKey.key_id); setKeyError("");
+      } catch (e) { setKeyError(e instanceof Error ? e.message : "Could not prepare browser signing key"); }
+    } catch (e) { setConnected(false); setError(e instanceof Error ? e.message : "Unable to connect to gateway"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { if (token) void loadConsole(token); }, []);
+  const decide = async (approval: any, decision: "approve" | "deny") => {
+    setBusyId(approval.approval_id); setError("");
+    try {
+      const statement = { type: "mandatepay/approval/v1", approval_id: approval.approval_id, intent_id: approval.intent_id, intent_hash: approval.intent_hash, decision };
+      let signed: { alg: string; key_id: string; value: string } | undefined;
+      if (decision === "approve") {
+        if (!signingKeyId) throw new Error(keyError || "No browser signing key is available.");
+        const localKey = await readSigningKey(signingKeyId);
+        if (!localKey) throw new Error("The browser signing key is unavailable. Disconnect and reconnect to register a new key.");
+        const canonical = JSON.stringify(Object.fromEntries(Object.entries(statement).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)));
+        const signatureBytes = await crypto.subtle.sign("Ed25519", localKey.private_key, new TextEncoder().encode(canonical));
+        signed = { alg: "Ed25519", key_id: signingKeyId, value: base64Url(signatureBytes) };
+      }
+      await request(`/v1/approvals/${approval.approval_id}/decision`, token, {
+        method: "POST", body: JSON.stringify({ statement, ...(signed ? { signature: signed } : {}) }),
+      });
+      await loadConsole(token);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not resolve approval"); }
+    finally { setBusyId(""); }
+  };
+  const updateKillSwitch = async (active: boolean) => {
+    setBusyId("kill"); setError("");
+    try { setKillSwitch(await request("/v1/kill-switch", token, { method: "PUT", body: JSON.stringify({ active, reason: active ? "Owner activated from console" : null }) })); await loadConsole(token); }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not update kill switch"); }
+    finally { setBusyId(""); }
+  };
+  const money = (minor?: number, currency = "NGN") => typeof minor === "number" ? new Intl.NumberFormat("en-NG", { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100) : "—";
+  const currentMandate = mandate?.mandate || {};
+  const rules = currentMandate || {};
+  const caps = rules?.limits || {};
+  const auditRows = audit.slice(-8).reverse();
+  const pendingCount = approvals.filter(a => a.status === "pending").length;
   const limits: [string, string][] = [["Auto limit / txn", "₦50,000"], ["Hard max / txn", "₦150,000"], ["Daily cap", "₦200,000"], ["Weekly cap", "₦600,000"], ["Approval TTL", "15 min"], ["Anomaly threshold", ">300% of avg"]];
-  const payees = [["Prime Foods Ltd", "pay_primefoods"], ["Sunrise Beverages", "pay_sunbev"], ["Marketplace Escrow", "pay_market_escrow"]];
-  const audit = [
-    { time: "10:42 AM", type: "allow", payee: "Prime Foods Ltd", amount: "₦12,000", reason: "Within limits" },
-    { time: "10:38 AM", type: "allow", payee: "Sunrise Beverages", amount: "₦9,500", reason: "Within limits" },
-    { time: "10:35 AM", type: "ask", payee: "Prime Foods Ltd", amount: "₦120,000", reason: "OVER_AUTO_LIMIT" },
-    { time: "10:31 AM", type: "block", payee: "Unknown Payee", amount: "₦85,000", reason: "PAYEE_UNKNOWN" },
-    { time: "10:28 AM", type: "block", payee: "Prime Foods Ltd", amount: "₦85,000", reason: "DESTINATION_MISMATCH" },
-  ];
   return <main className="page console-page">
     <AppHeader title="Owner Console" subtitle="Ada's Provisions — Dashboard" back onBack={() => go("home")} onProfile={() => go("profile")} />
+    {!connected ? <section className="gateway-connect"><div><strong>Connect owner account</strong><p>Enter the gateway owner bearer token to load live wallet, mandate, approval and audit data.</p></div><form onSubmit={e => { e.preventDefault(); void loadConsole(token); }}><input aria-label="Gateway owner token" type="password" autoComplete="off" placeholder="Owner API token" value={token} onChange={e => setToken(e.target.value)} /><Button type="submit" disabled={loading || !token.trim()}>{loading ? "Connecting…" : "Connect"}</Button></form></section> : <div className="gateway-connected"><span><i /> Live gateway connection</span><button type="button" onClick={() => { sessionStorage.removeItem("trustrail_owner_token"); setToken(""); setConnected(false); }}>Disconnect</button><button type="button" onClick={() => void loadConsole(token)}>Refresh</button></div>}
+    {error && <p className="api-error" role="alert">{error}</p>}
+    {connected && keyError && <p className="api-error" role="status">Approval signing is unavailable: {keyError}</p>}
     <section className="wallet-hero-card">
       <div className="wallet-top"><div className="wallet-label"><span className="round-icon green"><Icon name="wallet" /></span><span>Wallet Balance</span></div><Badge tone="neutral">LIVE</Badge></div>
-      <h1 className="wallet-amount">₦2,000,000</h1>
-      <small className="wallet-id">acct_wallet_ada · NGN</small>
+      <h1 className="wallet-amount">{money(wallet?.balance?.amount_minor, wallet?.balance?.currency || "NGN")}</h1>
+      <small className="wallet-id">{wallet?.account_id || "Wallet data unavailable"} · {wallet?.balance?.currency || "NGN"}</small>
       <div className="console-stat-row">
-        <div><strong>24</strong><span>Total</span></div>
-        <div className="stat-green"><strong>18</strong><span>Allowed</span></div>
-        <div className="stat-amber"><strong>3</strong><span>ASK</span></div>
-        <div className="stat-red"><strong>3</strong><span>Blocked</span></div>
+        <div><strong>{intents.length}</strong><span>Recent intents</span></div>
+        <div className="stat-green"><strong>{intents.filter(i => i.decision === "allow").length}</strong><span>Allowed</span></div>
+        <div className="stat-amber"><strong>{pendingCount}</strong><span>ASK pending</span></div>
+        <div className="stat-red"><strong>{intents.filter(i => i.decision === "block").length}</strong><span>Blocked</span></div>
       </div>
     </section>
     <section className="kill-switch-card">
       <div className="kill-switch-row">
         <span className={`round-icon ${killSwitch ? "red" : "green"}`}><Icon name="zap" /></span>
-        <div><h3>Emergency Kill Switch</h3><p>{killSwitch ? "All agent payments BLOCKED" : "Agent operating normally"}</p></div>
-        <button type="button" className={`toggle ${killSwitch ? "on" : ""}`} onClick={() => setKillSwitch(!killSwitch)} style={killSwitch ? {background: "#dc2626"} : {}}><span /></button>
+        <div><h3>Emergency Kill Switch</h3><p>{killSwitch?.active ? "All agent payments BLOCKED" : connected ? "Agent operating normally" : "Connect to manage the gateway switch"}</p></div>
+        <button type="button" aria-label={killSwitch?.active ? "Deactivate kill switch" : "Activate kill switch"} disabled={!connected || busyId === "kill"} className={`toggle ${killSwitch?.active ? "on" : ""}`} onClick={() => void updateKillSwitch(!killSwitch?.active)} style={killSwitch?.active ? {background: "#dc2626"} : {}}><span /></button>
       </div>
-      {killSwitch && <div className="kill-warning"><Icon name="shield" size={15} /> All payment intents are immediately blocked regardless of mandate rules.</div>}
+      {killSwitch?.active && <div className="kill-warning"><Icon name="shield" size={15} /> All payment intents are immediately blocked regardless of mandate rules. {killSwitch.reason || ""}</div>}
     </section>
     <div className="console-actions">
       <button type="button" className="console-action-card" onClick={() => go("security")}><span className="round-icon"><Icon name="target" /></span><div><strong>Security Demo</strong><p>Run 6 attack scenarios</p></div><Icon name="chevron" size={17} /></button>
@@ -410,20 +535,35 @@ function Console({ go }: { go: (s: Screen) => void }) {
     </div>
     <section className="section"><SectionTitle title="Active Mandate" />
       <div className="mandate-detail-card">
-        <div className="mandate-top"><Badge>ACTIVE</Badge><Badge tone="neutral">7-day validity</Badge></div>
-        <p className="mandate-purpose"><Icon name="shield" size={15} /> Restock shop inventory from approved suppliers and pools</p>
-        <div className="mandate-grid">{limits.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-        <div className="mandate-payees-list"><h3>Approved Payees</h3>{payees.map(([name, id]) => <div className="payee-row" key={id}><span className="verified"><Icon name="check" size={10} /></span><strong>{name}</strong><small>{id}</small></div>)}</div>
+        <div className="mandate-top"><Badge>{mandate?.status?.toUpperCase() || "NOT CONNECTED"}</Badge><Badge tone="neutral">{currentMandate?.mandate_id || "No active mandate"}</Badge></div>
+        <p className="mandate-purpose"><Icon name="shield" size={15} /> {currentMandate?.purpose || currentMandate?.description || "Connect the owner account to load the active mandate."}</p>
+        <div className="mandate-grid">{limits.map(([label, fallback]) => {
+          const raw = label.startsWith("Auto") ? caps.per_txn?.auto_max_minor : label.startsWith("Hard") ? caps.per_txn?.hard_max_minor : null;
+          const window = label.startsWith("Daily") ? caps.windows?.find((w: any) => w.seconds <= 86400) : label.startsWith("Weekly") ? caps.windows?.find((w: any) => w.seconds > 86400) : null;
+          const value = raw != null ? money(raw) : window ? money(window.cap_minor) : label.startsWith("Approval") ? (rules.ask_rules?.approval_ttl_seconds ? `${Math.round(rules.ask_rules.approval_ttl_seconds / 60)} min` : "—") : fallback;
+          return <div key={label}><span>{label}</span><strong>{mandate ? value : "—"}</strong></div>;
+        })}</div>
+        <div className="mandate-payees-list"><h3>Approved Payees</h3>{(currentMandate?.payees || []).map((entry: any) => <div className="payee-row" key={typeof entry === "string" ? entry : entry.payee_id}><span className="verified"><Icon name="check" size={10} /></span><strong>{typeof entry === "string" ? entry : entry.name || entry.payee_id}</strong><small>{typeof entry === "string" ? entry : entry.payee_id}</small></div>)}{mandate && !currentMandate?.payees?.length && <p className="empty-console">No approved payees are listed on the active mandate.</p>}</div>
       </div>
     </section>
-    <section className="section"><SectionTitle title="Audit Log" action="View all" />
-      <div className="audit-list">{audit.map((entry, i) => <div className={`audit-entry audit-${entry.type}`} key={i}>
-        <span className={`audit-dot dot-${entry.type}`} />
+    <section className="section"><SectionTitle title="Pending ASK approvals" />
+      <div className="audit-list">{approvals.length ? approvals.map((approval: any) => <article className="approval-live" key={approval.approval_id}>
+        <div className="audit-main"><strong>{approval.summary?.payee_name || approval.bound?.payee_id || "Payment approval"}</strong><Badge tone="amber">ASK</Badge></div>
+        <p>{money(approval.bound?.amount_minor, approval.bound?.currency)} · {approval.bound?.reference}</p>
+        {approval.agent_description && <blockquote className="agent-claim"><strong>Agent says · untrusted</strong><span>{approval.agent_description}</span></blockquote>}
+        <small>Expires {new Date(approval.expires_at).toLocaleString()}</small>
+        <details><summary>Payment details & signature</summary><p className="signature-hint">Statement hash: {approval.intent_hash} · Signed locally with {signingKeyId || "no browser key"}. The gateway rechecks all blocking rules before execution.</p><div className="approval-reasons">{(approval.summary?.reasons || []).map((reason: any) => <p key={reason.code}><strong>{reason.code}</strong> · {reason.detail}</p>)}</div></details>
+        <div className="dual-buttons"><Button disabled={busyId === approval.approval_id} onClick={() => void decide(approval, "approve")}>Approve</Button><Button variant="secondary" disabled={busyId === approval.approval_id} onClick={() => void decide(approval, "deny")}>Reject</Button></div>
+      </article>) : <p className="empty-console">{connected ? "No pending approvals." : "Connect to load pending approval requests."}</p>}</div>
+    </section>
+    <section className="section"><SectionTitle title="Audit Log" />
+      <div className="audit-list">{auditRows.length ? auditRows.map((entry: any) => <div className={`audit-entry audit-${entry.type}`} key={entry.seq}>
+        <span className={`audit-dot dot-${entry.type?.includes("block") ? "block" : entry.type?.includes("approval") ? "ask" : "allow"}`} />
         <div className="audit-body">
-          <div className="audit-main"><strong>{entry.payee}</strong><Badge tone={entry.type === "allow" ? "green" : entry.type === "ask" ? "amber" : "red"}>{entry.type.toUpperCase()}</Badge></div>
-          <div className="audit-meta"><span>{entry.amount}</span><span>{entry.reason}</span><span>{entry.time}</span></div>
+          <div className="audit-main"><strong>{entry.type}</strong><Badge tone={entry.type?.includes("block") ? "red" : entry.type?.includes("approval") ? "amber" : "green"}>{entry.seq}</Badge></div>
+          <div className="audit-meta"><span>{entry.subject?.id || "—"}</span><span>{JSON.stringify(entry.data || {})}</span><span>{new Date(entry.ts).toLocaleString()}</span></div>
         </div>
-      </div>)}</div>
+      </div>) : <p className="empty-console">{connected ? "No audit events found." : "Connect to load the gateway audit history."}</p>}</div>
     </section>
   </main>;
 }

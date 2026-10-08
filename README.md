@@ -68,6 +68,8 @@ Copy `.env.example` to `.env`:
 cp .env.example .env
 ```
 
+The owner console calls the gateway from the browser. For local use, the gateway allows the common development origins by default. When deploying the frontend on a different domain, set the gateway's `CORS_ALLOWED_ORIGINS` environment variable to that exact frontend origin (comma-separated if there are several). Set the frontend build variable `VITE_API_URL` to the gateway base URL. The owner bearer token is entered in the console and kept only for the browser session.
+
 ### 2. Generate Synthetic Sales Data (M1 Task)
 
 ```bash
