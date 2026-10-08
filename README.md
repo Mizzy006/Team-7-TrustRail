@@ -68,7 +68,7 @@ Copy `.env.example` to `.env`:
 cp .env.example .env
 ```
 
-The owner console calls the gateway from the browser. For local use, the gateway allows the common development origins by default. When deploying the frontend on a different domain, set the gateway's `CORS_ALLOWED_ORIGINS` environment variable to that exact frontend origin (comma-separated if there are several). Set the frontend build variable `VITE_API_URL` to the gateway base URL. The owner bearer token is entered in the console and kept only for the browser session.
+The owner console calls the gateway from the browser. The deployed MandateMarket frontend (`https://mandatemarket.vercel.app`) uses the TrustRail gateway at `https://gateway-u3w0.onrender.com`; these values are wired in the frontend fallback and `render.yaml` CORS configuration. If either domain changes, update both. For local development, set `VITE_API_URL=http://localhost:8001`; local frontend origins are allowed by default. The owner bearer token is entered in the console and kept only for the browser session.
 
 ### 2. Generate Synthetic Sales Data (M1 Task)
 

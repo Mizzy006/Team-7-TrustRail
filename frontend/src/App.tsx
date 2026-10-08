@@ -420,7 +420,7 @@ async function createOwnerSigningKey(): Promise<OwnerSigningKey> {
 }
 
 function Console({ go }: { go: (s: Screen) => void }) {
-  const gatewayBase = (import.meta as any).env?.VITE_GATEWAY_URL || (import.meta as any).env?.VITE_API_URL || "http://localhost:8001";
+  const gatewayBase = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.VITE_GATEWAY_URL || "https://gateway-u3w0.onrender.com";
   const [token, setToken] = useState(() => sessionStorage.getItem("trustrail_owner_token") || "");
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);

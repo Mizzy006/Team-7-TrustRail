@@ -46,7 +46,7 @@ cors_origins = [
     origin.strip()
     for origin in os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        "http://localhost:3000,http://localhost:5173,http://localhost:8443",
+        "http://localhost:3000,http://localhost:5173,http://localhost:8443,https://mandatemarket.vercel.app",
     ).split(",")
     if origin.strip()
 ]
