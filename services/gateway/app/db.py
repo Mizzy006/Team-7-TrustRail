@@ -18,7 +18,7 @@ def _make_engine():
     # SQLAlchemy 2 prefers postgresql+psycopg for psycopg3
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
-    return create_engine(url, pool_pre_ping=True)
+    return create_engine(url, pool_pre_ping=True, echo=True)
 
 
 engine = _make_engine()

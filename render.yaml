@@ -1,0 +1,71 @@
+databases:
+  - name: trustrail_db
+    databaseName: trustrail
+    user: trustrail
+    plan: free
+
+services:
+  # 1. Gateway Service
+  - type: web
+    name: gateway
+    env: docker
+    plan: free
+    dockerContext: .
+    dockerfilePath: ./services/gateway/Dockerfile
+    envVars:
+      - key: PORT
+        value: 8001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trustrail_db
+          property: connectionString
+
+  # 2. Market Service
+  - type: web
+    name: market
+    env: docker
+    plan: free
+    dockerContext: .
+    dockerfilePath: ./services/market/Dockerfile
+    envVars:
+      - key: PORT
+        value: 8002
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trustrail_db
+          property: connectionString
+
+  # 3. Agent Service
+  - type: web
+    name: agent
+    env: docker
+    plan: free
+    dockerContext: .
+    dockerfilePath: ./services/agent/Dockerfile
+    envVars:
+      - key: PORT
+        value: 8003
+      - key: GATEWAY_URL
+        fromService:
+          type: web
+          name: gateway
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MARKET_URL
+        fromService:
+          type: web
+          name: market
+          envVarKey: RENDER_EXTERNAL_URL
+
+  # 4. Frontend Static Site
+  - type: web
+    name: frontend
+    env: static
+    plan: free
+    buildCommand: cd frontend && npm install -g pnpm && pnpm install && pnpm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: gateway
+          envVarKey: RENDER_EXTERNAL_URL
