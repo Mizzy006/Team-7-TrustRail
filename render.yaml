@@ -60,7 +60,6 @@ services:
   - type: web
     name: frontend
     env: static
-    plan: free
     buildCommand: cd frontend && npm install -g pnpm && pnpm install && pnpm run build
     staticPublishPath: ./frontend/dist
     envVars:
