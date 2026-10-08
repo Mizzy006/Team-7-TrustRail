@@ -490,3 +490,54 @@ h1, h2, h3, .logo { font-family: "Manrope", sans-serif; }
   .form-grid { grid-template-columns: 1fr; gap: 0; }
   .match-list { grid-template-columns: 1fr; }
 }
+
+/* Owner tools and agent dashboards */
+.console-page, .forecast-page { width: min(1180px, 100%); }
+.wallet-hero-card { padding: 26px; border-radius: 22px; color: #fff; background: linear-gradient(125deg, var(--brand-950), #650065); }
+.wallet-top, .wallet-label, .console-stat-row, .kill-switch-row, .console-action-card, .mandate-top, .payee-row, .audit-main, .audit-meta, .sku-head, .sku-meta, .stock-info { display: flex; align-items: center; }
+.wallet-top, .console-stat-row, .mandate-top, .audit-main, .audit-meta, .sku-head, .sku-meta, .stock-info { justify-content: space-between; }
+.wallet-label { gap: 10px; font-size: 12px; }
+.wallet-amount { margin: 17px 0 4px; font: 800 36px "Manrope"; }
+.wallet-id { color: #ddc9dd; font-size: 10px; }
+.console-stat-row { max-width: 440px; gap: 22px; margin-top: 22px; padding-top: 17px; border-top: 1px solid #ffffff25; }
+.console-stat-row div { display: grid; gap: 3px; }
+.console-stat-row strong { font: 800 17px "Manrope"; }
+.console-stat-row span { color: #e3cfe3; font-size: 10px; }
+.stat-green strong { color: #70e2a0; }.stat-amber strong { color: #ffd277; }.stat-red strong { color: #ff8e8e; }
+.kill-switch-card, .mandate-detail-card, .audit-list, .sku-card { padding: 19px; border: 1px solid var(--line); border-radius: 17px; background: #fff; }
+.kill-switch-card { margin-top: 15px; }
+.kill-switch-row { gap: 12px; }.kill-switch-row > div { flex: 1; }.kill-switch-row h3 { font-size: 13px; }.kill-switch-row p { margin-top: 4px; color: var(--muted); font-size: 10px; }
+.round-icon.red { color: #c62828; background: #ffebeb; }
+.kill-warning, .restock-alert, .security-note { display: flex; align-items: center; gap: 9px; margin-top: 13px; padding: 12px; border-radius: 12px; color: #9c2424; background: #fff0f0; font-size: 10px; }
+.console-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 15px; }
+.console-action-card { width: 100%; gap: 11px; padding: 15px; text-align: left; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.console-action-card > div { flex: 1; }.console-action-card strong { font-size: 12px; }.console-action-card p { margin-top: 4px; color: var(--muted); font-size: 10px; }
+.mandate-purpose { display: flex; gap: 8px; align-items: center; margin: 15px 0; color: var(--muted); font-size: 11px; }
+.mandate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 13px; border-radius: 13px; background: #f7f8f7; }
+.mandate-grid > div { display: grid; gap: 4px; }.mandate-grid span, .payee-row small { color: var(--muted); font-size: 9px; }.mandate-grid strong { font-size: 11px; }
+.mandate-payees-list { margin-top: 16px; }.mandate-payees-list h3 { margin-bottom: 8px; font-size: 12px; }.payee-row { gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }.payee-row strong { flex: 1; font-size: 10px; }
+.audit-list { padding: 0 16px; }.audit-entry { display: flex; gap: 11px; padding: 13px 0; border-bottom: 1px solid var(--line); }.audit-entry:last-child { border: 0; }.audit-dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; }.dot-allow { background: #16a34a; }.dot-ask { background: #eaa323; }.dot-block { background: #dc2626; }.audit-body { flex: 1; min-width: 0; }.audit-main strong { font-size: 11px; }.audit-meta { gap: 10px; margin-top: 6px; color: var(--muted); font-size: 9px; }
+.forecast-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }.forecast-stat { display: grid; gap: 5px; padding: 17px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }.forecast-stat strong { color: var(--brand-700); font: 800 23px "Manrope"; }.forecast-stat span { color: var(--muted); font-size: 10px; }.restock-alert { color: #855100; background: #fff7df; }.restock-alert div { display: grid; gap: 3px; }.restock-alert p { font-size: 10px; }
+.sku-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }.sku-card { min-width: 0; }.sku-card.restock-needed { border-color: #f4caca; }.sku-head { gap: 8px; }.sku-head h3 { font-size: 13px; }.sku-head small { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; overflow-wrap: anywhere; }.sku-chart { height: 100px; margin: 15px 0; padding: 8px 4px 0; border-bottom: 1px solid var(--line); }.chart-bars { height: 100%; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); align-items: end; gap: 3px; }.chart-bar-wrap { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; min-width: 0; }.chart-bar { width: 100%; min-height: 3px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #bc63bc, var(--brand-600)); }.chart-bar-wrap span { height: 9px; color: var(--muted); font-size: 7px; white-space: nowrap; }.sku-stock { margin-top: 12px; }.stock-info { font-size: 9px; }.stock-info span, .sku-meta { color: var(--muted); }.stock-bar-track { height: 6px; margin-top: 7px; border-radius: 99px; background: #eee9ee; overflow: hidden; }.stock-bar-fill { height: 100%; border-radius: inherit; }.sku-meta { gap: 8px; margin-top: 9px; font-size: 8px; }.api-error { margin: 10px 0; padding: 11px 13px; border-radius: 10px; color: #a32121; background: #fff0f0; font-size: 11px; }
+
+@media (min-width: 701px) and (max-width: 1024px) {
+  .page { padding-left: 22px; padding-right: 22px; }
+  .groups-grid, .sku-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+  .group-card > img { height: clamp(145px, 22vw, 205px); }
+  .product-hero { height: clamp(340px, 46vw, 440px); }
+  .detail-content { max-width: 800px; margin: auto; }
+  .ai-page { width: min(900px, 100%); }
+  .ai-status { padding: 19px; }
+  .chat-area { max-width: 700px; }
+  .ai-result { margin-left: 28px; }
+  .criteria-grid span { padding: 9px 6px; }
+  .console-page .mandate-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .console-page, .forecast-page { padding-left: 16px; padding-right: 16px; }
+  .console-actions, .sku-grid { grid-template-columns: 1fr; }
+  .wallet-hero-card { padding: 20px; }.wallet-amount { font-size: 30px; }.console-stat-row { gap: 12px; }
+  .mandate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.payee-row { flex-wrap: wrap; }.payee-row small { margin-left: 26px; width: 100%; }
+  .audit-meta { align-items: flex-start; flex-direction: column; gap: 3px; }.forecast-summary { gap: 7px; }.forecast-stat { padding: 12px 9px; }.forecast-stat strong { font-size: 19px; }.forecast-stat span { font-size: 9px; }
+}

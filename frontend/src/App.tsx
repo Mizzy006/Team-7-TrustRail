@@ -17,7 +17,10 @@ type Screen =
   | "group-created"
   | "ai-approval"
   | "ai-processing"
-  | "ai-success";
+  | "ai-success"
+  | "console"
+  | "security"
+  | "forecast";
 
 type IconName =
   | "home"
@@ -44,7 +47,13 @@ type IconName =
   | "sliders"
   | "headphones"
   | "settings"
-  | "edit";
+  | "edit"
+  | "zap"
+  | "wallet"
+  | "x"
+  | "activity"
+  | "lock"
+  | "trending";
 
 const riceImage =
   "https://images.unsplash.com/photo-1704972269889-f0fdd7f0e7c3?auto=format&fit=crop&w=1200&q=85";
@@ -82,6 +91,12 @@ function Icon({ name, size = 20, className = "" }: { name: IconName; size?: numb
     headphones: <><path d="M4 14v-2a8 8 0 0 1 16 0v2" /><path d="M4 14h4v7H6a2 2 0 0 1-2-2v-5ZM20 14h-4v7h2a2 2 0 0 0 2-2v-5Z" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21h-4v-.08a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-4h.08a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3h4v.08a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21v4h-.08a1.7 1.7 0 0 0-1.52 1Z" /></>,
     edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4L16.5 3.5Z" /></>,
+    zap: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" />,
+    wallet: <><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" /></>,
+    x: <><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>,
+    activity: <path d="M22 12h-4l-3 7-4-14-3 7H2" />,
+    lock: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>,
+    trending: <><path d="m23 6-9.5 9.5-5-5L1 18" /><path d="M17 6h6v6" /></>,
   };
   return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
@@ -102,7 +117,7 @@ function Progress({ value = 74, total = 100 }: { value?: number; total?: number 
   return <div className="progress-track"><div className="progress-fill" style={{ width: `${Math.round((value / total) * 100)}%` }} /></div>;
 }
 
-function Badge({ children, tone = "green" }: { children: React.ReactNode; tone?: "green" | "amber" | "neutral" }) {
+function Badge({ children, tone = "green" }: { children: React.ReactNode; tone?: "green" | "amber" | "neutral" | "red" }) {
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 
@@ -126,7 +141,7 @@ const navItems: { screen: Screen; label: string; icon: IconName }[] = [
 
 function Navigation({ active, go }: { active: Screen; go: (screen: Screen) => void }) {
   return <>
-    <nav className="desktop-nav"><Logo /> <div>{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} onClick={() => go(item.screen)}>{item.label}</button>)}</div><button className="avatar" type="button" onClick={() => go("profile")}>ZA</button></nav>
+    <nav className="desktop-nav"><Logo /> <div>{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} onClick={() => go(item.screen)}>{item.label}</button>)}</div><div className="nav-right"><button type="button" className="console-btn" onClick={() => go("console")}><Icon name="shield" size={16} /> Console</button><button className="avatar" type="button" onClick={() => go("profile")}>ZA</button></div></nav>
     <nav className="bottom-nav">{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} onClick={() => go(item.screen)}><Icon name={item.icon} size={21} /><span>{item.label === "MandatePay AI" ? "Mandate AI" : item.label}</span></button>)}</nav>
   </>;
 }
@@ -353,8 +368,168 @@ function Tracking({ go }: { go: (s: Screen) => void }) {
 }
 
 function Profile({ go }: { go: (s: Screen) => void }) {
-  const menu: [IconName, string, string][] = [["bag", "My orders", "Track active and past orders"], ["sliders", "My buying rules", "Manage MandatePay preferences"], ["sparkles", "MandatePay AI", "Assistant activity and permissions"], ["card", "Payment methods", "Wema and approved methods"], ["pin", "Saved addresses", "2 delivery addresses"], ["bell", "Notifications", "Deals and order updates"], ["headphones", "Help & support", "FAQs and contact"], ["settings", "Settings", "Privacy and app preferences"]];
-  return <main className="page narrow-page"><AppHeader back onBack={() => go("home")} title="Profile" /><section className="profile-hero"><div className="profile-avatar">ZA</div><div><h1>Zainab Adesina</h1><p>+234 803 123 4567</p><span><Icon name="pin" size={14} /> Ikeja, Lagos</span></div><IconButton icon="edit" label="Edit profile" /></section><section className="profile-stats"><div><strong>4</strong><span>Group buys</span></div><div><strong>₦31k</strong><span>Total saved</span></div><div><strong>2</strong><span>Active rules</span></div></section><section className="profile-menu">{menu.map(([icon, title, sub]) => <button type="button" key={title} onClick={() => title === "My orders" ? go("orders") : title.includes("Mandate") || title.includes("rules") ? go("ai") : undefined}><span className="round-icon"><Icon name={icon} /></span><div><strong>{title}</strong><small>{sub}</small></div><Icon name="chevron" size={17} /></button>)}</section><Button className="full-button" variant="ghost">Sign out</Button></main>;
+  const menu: [IconName, string, string][] = [["shield", "Owner Console", "Mandate dashboard & audit log"], ["target", "Security Demo", "Red-team attack scenarios"], ["activity", "Forecast Dashboard", "Demand forecast & restock"], ["bag", "My orders", "Track active and past orders"], ["sliders", "My buying rules", "Manage MandatePay preferences"], ["sparkles", "MandatePay AI", "Assistant activity and permissions"], ["card", "Payment methods", "Wema and approved methods"], ["pin", "Saved addresses", "2 delivery addresses"], ["bell", "Notifications", "Deals and order updates"], ["headphones", "Help & support", "FAQs and contact"], ["settings", "Settings", "Privacy and app preferences"]];
+  return <main className="page narrow-page"><AppHeader back onBack={() => go("home")} title="Profile" /><section className="profile-hero"><div className="profile-avatar">ZA</div><div><h1>Zainab Adesina</h1><p>+234 803 123 4567</p><span><Icon name="pin" size={14} /> Ikeja, Lagos</span></div><IconButton icon="edit" label="Edit profile" /></section><section className="profile-stats"><div><strong>4</strong><span>Group buys</span></div><div><strong>₦31k</strong><span>Total saved</span></div><div><strong>2</strong><span>Active rules</span></div></section><section className="profile-menu">{menu.map(([icon, title, sub]) => <button type="button" key={title} onClick={() => title === "Owner Console" ? go("console") : title === "Security Demo" ? go("security") : title === "Forecast Dashboard" ? go("forecast") : title === "My orders" ? go("orders") : title.includes("Mandate") || title.includes("rules") ? go("ai") : undefined}><span className="round-icon"><Icon name={icon} /></span><div><strong>{title}</strong><small>{sub}</small></div><Icon name="chevron" size={17} /></button>)}</section><Button className="full-button" variant="ghost">Sign out</Button></main>;
+}
+
+function Console({ go }: { go: (s: Screen) => void }) {
+  const [killSwitch, setKillSwitch] = useState(false);
+  const limits: [string, string][] = [["Auto limit / txn", "₦50,000"], ["Hard max / txn", "₦150,000"], ["Daily cap", "₦200,000"], ["Weekly cap", "₦600,000"], ["Approval TTL", "15 min"], ["Anomaly threshold", ">300% of avg"]];
+  const payees = [["Prime Foods Ltd", "pay_primefoods"], ["Sunrise Beverages", "pay_sunbev"], ["Marketplace Escrow", "pay_market_escrow"]];
+  const audit = [
+    { time: "10:42 AM", type: "allow", payee: "Prime Foods Ltd", amount: "₦12,000", reason: "Within limits" },
+    { time: "10:38 AM", type: "allow", payee: "Sunrise Beverages", amount: "₦9,500", reason: "Within limits" },
+    { time: "10:35 AM", type: "ask", payee: "Prime Foods Ltd", amount: "₦120,000", reason: "OVER_AUTO_LIMIT" },
+    { time: "10:31 AM", type: "block", payee: "Unknown Payee", amount: "₦85,000", reason: "PAYEE_UNKNOWN" },
+    { time: "10:28 AM", type: "block", payee: "Prime Foods Ltd", amount: "₦85,000", reason: "DESTINATION_MISMATCH" },
+  ];
+  return <main className="page console-page">
+    <AppHeader title="Owner Console" subtitle="Ada's Provisions — Dashboard" back onBack={() => go("home")} onProfile={() => go("profile")} />
+    <section className="wallet-hero-card">
+      <div className="wallet-top"><div className="wallet-label"><span className="round-icon green"><Icon name="wallet" /></span><span>Wallet Balance</span></div><Badge tone="neutral">LIVE</Badge></div>
+      <h1 className="wallet-amount">₦2,000,000</h1>
+      <small className="wallet-id">acct_wallet_ada · NGN</small>
+      <div className="console-stat-row">
+        <div><strong>24</strong><span>Total</span></div>
+        <div className="stat-green"><strong>18</strong><span>Allowed</span></div>
+        <div className="stat-amber"><strong>3</strong><span>ASK</span></div>
+        <div className="stat-red"><strong>3</strong><span>Blocked</span></div>
+      </div>
+    </section>
+    <section className="kill-switch-card">
+      <div className="kill-switch-row">
+        <span className={`round-icon ${killSwitch ? "red" : "green"}`}><Icon name="zap" /></span>
+        <div><h3>Emergency Kill Switch</h3><p>{killSwitch ? "All agent payments BLOCKED" : "Agent operating normally"}</p></div>
+        <button type="button" className={`toggle ${killSwitch ? "on" : ""}`} onClick={() => setKillSwitch(!killSwitch)} style={killSwitch ? {background: "#dc2626"} : {}}><span /></button>
+      </div>
+      {killSwitch && <div className="kill-warning"><Icon name="shield" size={15} /> All payment intents are immediately blocked regardless of mandate rules.</div>}
+    </section>
+    <div className="console-actions">
+      <button type="button" className="console-action-card" onClick={() => go("security")}><span className="round-icon"><Icon name="target" /></span><div><strong>Security Demo</strong><p>Run 6 attack scenarios</p></div><Icon name="chevron" size={17} /></button>
+      <button type="button" className="console-action-card" onClick={() => go("forecast")}><span className="round-icon"><Icon name="activity" /></span><div><strong>Forecast Dashboard</strong><p>Demand & restock intelligence</p></div><Icon name="chevron" size={17} /></button>
+    </div>
+    <section className="section"><SectionTitle title="Active Mandate" />
+      <div className="mandate-detail-card">
+        <div className="mandate-top"><Badge>ACTIVE</Badge><Badge tone="neutral">7-day validity</Badge></div>
+        <p className="mandate-purpose"><Icon name="shield" size={15} /> Restock shop inventory from approved suppliers and pools</p>
+        <div className="mandate-grid">{limits.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+        <div className="mandate-payees-list"><h3>Approved Payees</h3>{payees.map(([name, id]) => <div className="payee-row" key={id}><span className="verified"><Icon name="check" size={10} /></span><strong>{name}</strong><small>{id}</small></div>)}</div>
+      </div>
+    </section>
+    <section className="section"><SectionTitle title="Audit Log" action="View all" />
+      <div className="audit-list">{audit.map((entry, i) => <div className={`audit-entry audit-${entry.type}`} key={i}>
+        <span className={`audit-dot dot-${entry.type}`} />
+        <div className="audit-body">
+          <div className="audit-main"><strong>{entry.payee}</strong><Badge tone={entry.type === "allow" ? "green" : entry.type === "ask" ? "amber" : "red"}>{entry.type.toUpperCase()}</Badge></div>
+          <div className="audit-meta"><span>{entry.amount}</span><span>{entry.reason}</span><span>{entry.time}</span></div>
+        </div>
+      </div>)}</div>
+    </section>
+  </main>;
+}
+
+function SecurityDemo({ go }: { go: (s: Screen) => void }) {
+  const [results, setResults] = useState<Record<string, { decision: string; reasons: string[] }>>({});
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState("");
+  const attacks = [
+    { id: "S1", name: "Poisoned Payee Invoice", desc: "Inject unregistered payee with destination 9999999999", expected: "BLOCK", reason: "PAYEE_UNKNOWN", color: "#ef4444" },
+    { id: "S2", name: "Swapped Bank Details", desc: "pay_primefoods with tampered account 1001999999", expected: "BLOCK", reason: "DESTINATION_MISMATCH", color: "#f97316" },
+    { id: "S3", name: "Quantity ×10 Inflation", desc: "₦120,000 single transaction to pay_primefoods", expected: "ASK", reason: "OVER_AUTO_LIMIT, ANOMALOUS_AMOUNT", color: "#eab308" },
+    { id: "S4", name: "Velocity Micro-Payments", desc: "30 × ₦40,000 rapid payments to pay_sunbev", expected: "5 ALLOW → BLOCK", reason: "WINDOW_CAP_EXCEEDED", color: "#8b5cf6" },
+    { id: "S5", name: "Forged Prior Approval", desc: "₦80,000 claiming owner pre-approved", expected: "ASK", reason: "Prior claim ignored", color: "#06b6d4" },
+    { id: "S6", name: "Race for the Cap", desc: "2 concurrent ₦40,000 intents", expected: "1 ALLOW, 1 BLOCK", reason: "WINDOW_CAP_EXCEEDED", color: "#ec4899" },
+  ];
+  const runAll = async () => {
+    setRunning(true);
+    setRunError("");
+    try {
+      const res = await fetch("http://localhost:8003/agent/v1/attacks/ALL/run", { method: "POST" });
+      if (!res.ok) throw new Error(`Agent returned HTTP ${res.status}`);
+      const data = await res.json();
+      const mapped: Record<string, { decision: string; reasons: string[] }> = {};
+      if (data.results) {
+        data.results.forEach((r: any, i: number) => {
+          const actual = r.actual_decision || r.decision || r.status;
+          const detail = r.actual_reason || r.reason_code || r.expected_reason || r.reason;
+          const velocity = Array.isArray(r.details) ? `${r.details.filter((x: any) => x.decision === "allow").length} ALLOW, ${r.details.filter((x: any) => x.decision === "block").length} BLOCK` : undefined;
+          mapped[r.scenario_id || attacks[i]?.id || `S${i + 1}`] = { decision: velocity || (actual ? actual.toUpperCase() : attacks[i]?.expected || "UNKNOWN"), reasons: [detail || (r.invariant_held === false ? "Safety invariant breached" : attacks[i]?.reason || "No reason returned")] };
+        });
+      }
+      setResults(mapped);
+      if (!data.results) setRunError("The agent response did not include scenario results.");
+    } catch (error) {
+      setRunError(error instanceof Error ? `${error.message}. Check that the agent service is running.` : "Could not reach the agent service.");
+    }
+    setRunning(false);
+  };
+  return <main className="page narrow-page security-page">
+    <AppHeader back onBack={() => go("console")} title="Security Demo" />
+    <section className="security-hero">
+      <span className="ai-orb large" style={{ background: "linear-gradient(145deg, #ef4444, #b91c1c)" }}><Icon name="shield" size={28} /></span>
+      <h1>Red-Team Attack Runner</h1>
+      <p>Test MandatePay's policy engine against 6 adversarial scenarios designed to probe the gateway's defences.</p>
+    </section>
+    <Button className="full-button" onClick={runAll} variant="dark" icon="zap">{running ? "Running attacks…" : "Run all 6 scenarios"}</Button>
+    {runError && <p className="api-error" role="alert">{runError}</p>}
+    <div className="attack-grid">{attacks.map(a => <article className={`attack-card ${results[a.id] ? "has-result" : ""}`} key={a.id}>
+      <div className="attack-card-head"><span className="attack-id" style={{ background: a.color + "18", color: a.color }}>{a.id}</span><h3>{a.name}</h3></div>
+      <p className="attack-desc">{a.desc}</p>
+      <div className="attack-expected"><span>Expected</span><strong>{a.expected}</strong></div>
+      <small className="attack-reason">{a.reason}</small>
+      {results[a.id] && <div className="attack-result">
+        <div className="attack-result-head"><Icon name={results[a.id].decision.includes("BLOCK") ? "shield" : results[a.id].decision.includes("ASK") ? "clock" : "check"} size={16} /><strong>{results[a.id].decision}</strong></div>
+        <small>{results[a.id].reasons.join(", ")}</small>
+      </div>}
+    </article>)}</div>
+    <div className="security-note"><Icon name="lock" size={16} /><p><strong>Defence in depth.</strong> Even if the AI agent is fully compromised, the gateway's deterministic policy engine enforces hard limits — the worst case is the cap, never the full balance.</p></div>
+  </main>;
+}
+
+function ForecastDashboard({ go }: { go: (s: Screen) => void }) {
+  const skus = [
+    { id: "sku_noodles_carton", name: "Instant Noodles", unit: "carton", stock: 32, reorder: 25, target: 50, forecast: [8, 12, 9, 11, 7, 14, 10, 13, 8, 11, 9, 12, 10, 11], price: "₦12,000" },
+    { id: "sku_rice_50kg", name: "Parboiled Rice 50kg", unit: "bag", stock: 7, reorder: 10, target: 25, forecast: [3, 2, 4, 3, 2, 5, 3, 4, 3, 2, 4, 3, 3, 4], price: "₦65,000" },
+    { id: "sku_cooking_oil_5l", name: "Cooking Oil 5L", unit: "jug", stock: 15, reorder: 20, target: 40, forecast: [5, 7, 6, 4, 8, 5, 7, 6, 5, 7, 4, 8, 6, 5], price: "₦14,000" },
+    { id: "sku_malt_crate", name: "Malt Drink", unit: "crate", stock: 42, reorder: 30, target: 60, forecast: [9, 11, 8, 12, 10, 9, 13, 8, 11, 10, 9, 12, 10, 11], price: "₦9,500" },
+    { id: "sku_sugar_50kg", name: "White Sugar 50kg", unit: "bag", stock: 8, reorder: 12, target: 30, forecast: [2, 3, 2, 4, 2, 3, 3, 2, 4, 2, 3, 2, 3, 2], price: "₦58,000" },
+    { id: "sku_evap_milk_case", name: "Evaporated Milk", unit: "case", stock: 18, reorder: 15, target: 35, forecast: [4, 5, 3, 6, 4, 5, 4, 5, 3, 6, 4, 5, 4, 5], price: "₦18,500" },
+  ];
+  const [liveForecasts, setLiveForecasts] = useState<Record<string, number[]>>({});
+  const [recommendations, setRecommendations] = useState<Record<string, { urgency: string; recommended_qty: number; reason: string }>>({});
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch("http://localhost:8003/agent/v1/forecast").then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch("http://localhost:8003/agent/v1/recommendations").then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([forecastData, recommendationData]) => {
+      if (!active) return;
+      if (Array.isArray(forecastData)) setLiveForecasts(Object.fromEntries(forecastData.map((f: any) => [f.sku_id, (f.daily_forecast || []).map((d: any) => Number(d.qty) || 0)])));
+      if (Array.isArray(recommendationData)) setRecommendations(Object.fromEntries(recommendationData.map((r: any) => [r.sku_id, r])));
+    });
+    return () => { active = false; };
+  }, []);
+  const needsRestock = (sku: typeof skus[0]) => recommendations[sku.id] ? recommendations[sku.id].urgency !== "none" : sku.stock <= sku.reorder;
+  const forecastFor = (sku: typeof skus[0]) => liveForecasts[sku.id]?.length ? liveForecasts[sku.id] : sku.forecast;
+  const stockPct = (sku: typeof skus[0]) => Math.min(100, Math.round((sku.stock / sku.target) * 100));
+  const maxForecast = Math.max(...skus.flatMap(s => forecastFor(s)));
+  return <main className="page forecast-page">
+    <AppHeader title="Forecast Dashboard" subtitle="14-day demand forecast & restock" back onBack={() => go("console")} onProfile={() => go("profile")} />
+    <section className="forecast-summary">
+      <div className="forecast-stat"><strong>{skus.filter(needsRestock).length}</strong><span>Need restock</span></div>
+      <div className="forecast-stat"><strong>{skus.length}</strong><span>Total SKUs</span></div>
+      <div className="forecast-stat"><strong>14</strong><span>Day horizon</span></div>
+    </section>
+    {skus.filter(needsRestock).length > 0 && <section className="restock-alert"><Icon name="zap" size={18} /><div><strong>{skus.filter(needsRestock).length} SKUs below reorder point</strong><p>{skus.filter(needsRestock).map(s => s.name).join(", ")}</p></div></section>}
+    <section className="section"><SectionTitle title="Demand Forecast by SKU" />
+      <div className="sku-grid">{skus.map(sku => <article className={`sku-card ${needsRestock(sku) ? "restock-needed" : ""}`} key={sku.id}>
+        <div className="sku-head"><div><h3>{sku.name}</h3><small>{sku.id}</small></div><Badge tone={needsRestock(sku) ? "red" : "green"}>{needsRestock(sku) ? "RESTOCK" : "OK"}</Badge></div>
+        <div className="sku-chart"><div className="chart-bars">{forecastFor(sku).map((v, i) => <div key={i} className="chart-bar-wrap"><div className="chart-bar" style={{ height: `${(v / maxForecast) * 100}%` }} /><span>{i % 3 === 0 ? `D${i + 1}` : ""}</span></div>)}</div></div>
+        <div className="sku-stock"><div className="stock-info"><span>Stock</span><strong>{sku.stock} / {sku.target} {sku.unit}s</strong></div><div className="stock-bar-track"><div className="stock-bar-fill" style={{ width: `${stockPct(sku)}%`, background: needsRestock(sku) ? "#ef4444" : "var(--brand-600)" }} /></div></div>
+        <div className="sku-meta"><span>Reorder at {sku.reorder}</span><span>{recommendations[sku.id]?.recommended_qty ? `Suggested: ${recommendations[sku.id].recommended_qty} ${sku.unit}s` : `${sku.price} / ${sku.unit}`}</span></div>
+      </article>)}</div>
+    </section>
+  </main>;
 }
 
 function Splash() {
@@ -387,6 +562,9 @@ export default function App() {
       case "ai-success": return <Success go={go} ai aiData={aiData} />;
       case "orders": return <Orders go={go} />;
       case "tracking": return <Tracking go={go} />;
+      case "console": return <Console go={go} />;
+      case "security": return <SecurityDemo go={go} />;
+      case "forecast": return <ForecastDashboard go={go} />;
       case "profile": return <Profile go={go} />;
     }
   })();
