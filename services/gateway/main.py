@@ -1,11 +1,12 @@
+"""Thin entrypoint: run uvicorn on app.main:app port 8001."""
+
+from __future__ import annotations
+
 import uvicorn
-from fastapi import FastAPI
 
-app = FastAPI(title="MandatePay Gateway Service Stub", version="1.0.0")
+from app.main import app
 
-@app.get("/healthz")
-def health_check():
-    return {"status": "ok", "service": "gateway", "version": "1.0.0"}
+__all__ = ["app"]
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8001, reload=True)

@@ -1,0 +1,359 @@
+import { useEffect, useMemo, useState } from "react";
+
+type Screen =
+  | "home"
+  | "explore"
+  | "groups"
+  | "ai"
+  | "orders"
+  | "profile"
+  | "product"
+  | "join"
+  | "checkout"
+  | "processing"
+  | "success"
+  | "tracking"
+  | "start-group"
+  | "group-created"
+  | "ai-approval"
+  | "ai-processing"
+  | "ai-success";
+
+type IconName =
+  | "home"
+  | "search"
+  | "users"
+  | "sparkles"
+  | "bag"
+  | "pin"
+  | "bell"
+  | "arrow"
+  | "back"
+  | "check"
+  | "shield"
+  | "star"
+  | "clock"
+  | "filter"
+  | "plus"
+  | "minus"
+  | "send"
+  | "chevron"
+  | "card"
+  | "truck"
+  | "target"
+  | "sliders"
+  | "headphones"
+  | "settings"
+  | "edit";
+
+const riceImage =
+  "https://images.unsplash.com/photo-1704972269889-f0fdd7f0e7c3?auto=format&fit=crop&w=1200&q=85";
+const grainImage =
+  "https://images.unsplash.com/photo-1644377949116-c4a6b529241c?auto=format&fit=crop&w=900&q=85";
+const oilImage =
+  "https://images.unsplash.com/photo-1771576774943-3433ed2239f6?auto=format&fit=crop&w=900&q=85";
+const tomatoImage =
+  "https://images.unsplash.com/photo-1611754349119-9516a4e426dd?auto=format&fit=crop&w=900&q=85";
+
+function Icon({ name, size = 20, className = "" }: { name: IconName; size?: number; className?: string }) {
+  const paths: Record<IconName, React.ReactNode> = {
+    home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>,
+    search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
+    users: <><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 20v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    sparkles: <><path d="m12 3-1.2 3.2L8 7.5l2.8 1.3L12 12l1.2-3.2L16 7.5l-2.8-1.3L12 3Z" /><path d="m5 13-.8 2.2L2 16l2.2.8L5 19l.8-2.2L8 16l-2.2-.8L5 13ZM19 12l-.8 2.2-2.2.8 2.2.8L19 18l.8-2.2L22 15l-2.2-.8L19 12Z" /></>,
+    bag: <><path d="M6 8h12l1 13H5L6 8Z" /><path d="M9 9V6a3 3 0 0 1 6 0v3" /></>,
+    pin: <><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
+    bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>,
+    arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
+    back: <><path d="m15 18-6-6 6-6" /></>,
+    check: <path d="m5 12 4 4L19 6" />,
+    shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></>,
+    star: <path d="m12 2 3 6 6.5 1-4.7 4.6 1.1 6.4-5.9-3.1L6.1 20l1.1-6.4L2.5 9 9 8l3-6Z" />,
+    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    filter: <><path d="M4 6h16M7 12h10M10 18h4" /></>,
+    plus: <path d="M12 5v14M5 12h14" />,
+    minus: <path d="M5 12h14" />,
+    send: <><path d="m22 2-7 20-4-9-9-4 20-7Z" /><path d="M22 2 11 13" /></>,
+    chevron: <path d="m9 18 6-6-6-6" />,
+    card: <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>,
+    truck: <><path d="M3 6h11v11H3zM14 10h4l3 3v4h-7z" /><circle cx="7" cy="18" r="2" /><circle cx="18" cy="18" r="2" /></>,
+    target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></>,
+    sliders: <><path d="M4 5h16M4 12h16M4 19h16" /><circle cx="8" cy="5" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="10" cy="19" r="2" /></>,
+    headphones: <><path d="M4 14v-2a8 8 0 0 1 16 0v2" /><path d="M4 14h4v7H6a2 2 0 0 1-2-2v-5ZM20 14h-4v7h2a2 2 0 0 0 2-2v-5Z" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21h-4v-.08a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-4h.08a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3h4v.08a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21v4h-.08a1.7 1.7 0 0 0-1.52 1Z" /></>,
+    edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4L16.5 3.5Z" /></>,
+  };
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
+function Button({ children, onClick, variant = "primary", className = "", icon }: { children: React.ReactNode; onClick?: () => void; variant?: "primary" | "secondary" | "ghost" | "dark"; className?: string; icon?: IconName }) {
+  return <button type="button" onClick={onClick} className={`btn btn-${variant} ${className}`}>{children}{icon && <Icon name={icon} size={18} />}</button>;
+}
+
+function IconButton({ icon, onClick, label, className = "" }: { icon: IconName; onClick?: () => void; label: string; className?: string }) {
+  return <button type="button" aria-label={label} onClick={onClick} className={`icon-button ${className}`}><Icon name={icon} /></button>;
+}
+
+function Logo({ compact = false }: { compact?: boolean }) {
+  return <div className="logo"><span className="logo-mark"><Icon name="users" size={compact ? 17 : 20} /></span>{!compact && <span>Mandate<span>Market</span></span>}</div>;
+}
+
+function Progress({ value = 74, total = 100 }: { value?: number; total?: number }) {
+  return <div className="progress-track"><div className="progress-fill" style={{ width: `${Math.round((value / total) * 100)}%` }} /></div>;
+}
+
+function Badge({ children, tone = "green" }: { children: React.ReactNode; tone?: "green" | "amber" | "neutral" }) {
+  return <span className={`badge badge-${tone}`}>{children}</span>;
+}
+
+function AppHeader({ title, subtitle, back, onBack, onProfile }: { title?: string; subtitle?: string; back?: boolean; onBack?: () => void; onProfile?: () => void }) {
+  return <header className="app-header">
+    <div className="header-left">
+      {back ? <IconButton icon="back" label="Go back" onClick={onBack} /> : <Logo />}
+      {title && <div><p className="header-title">{title}</p>{subtitle && <p className="header-subtitle">{subtitle}</p>}</div>}
+    </div>
+    <div className="header-actions"><IconButton icon="bell" label="Notifications" /><button className="avatar" type="button" onClick={onProfile} aria-label="Open profile">ZA</button></div>
+  </header>;
+}
+
+const navItems: { screen: Screen; label: string; icon: IconName }[] = [
+  { screen: "home", label: "Home", icon: "home" },
+  { screen: "explore", label: "Explore", icon: "search" },
+  { screen: "groups", label: "Buy Together", icon: "users" },
+  { screen: "ai", label: "MandatePay AI", icon: "sparkles" },
+  { screen: "orders", label: "Orders", icon: "bag" },
+];
+
+function Navigation({ active, go }: { active: Screen; go: (screen: Screen) => void }) {
+  return <>
+    <nav className="desktop-nav"><Logo /> <div>{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} onClick={() => go(item.screen)}>{item.label}</button>)}</div><button className="avatar" type="button" onClick={() => go("profile")}>ZA</button></nav>
+    <nav className="bottom-nav">{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} onClick={() => go(item.screen)}><Icon name={item.icon} size={21} /><span>{item.label === "MandatePay AI" ? "Mandate AI" : item.label}</span></button>)}</nav>
+  </>;
+}
+
+function SearchBox({ text = "What are you looking for?", onClick }: { text?: string; onClick?: () => void }) {
+  return <button type="button" className="search-box" onClick={onClick}><Icon name="search" /><span>{text}</span><span className="search-filter"><Icon name="filter" size={18} /></span></button>;
+}
+
+function SectionTitle({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  return <div className="section-title"><h2>{title}</h2>{action && <button type="button" onClick={onAction}>{action}<Icon name="arrow" size={15} /></button>}</div>;
+}
+
+function ProductCard({ image = riceImage, title = "25kg Premium Rice", producer = "GreenFields Farms", price = "₦45,000", regular = "₦52,000", progress = 72, needed = 28, onClick }: { image?: string; title?: string; producer?: string; price?: string; regular?: string; progress?: number; needed?: number; onClick: () => void }) {
+  return <article className="product-card">
+    <button className="product-image-wrap" type="button" onClick={onClick}><img src={image} alt={title} className="product-image" /><Badge>Save ₦7,000</Badge></button>
+    <div className="product-card-body">
+      <h3>{title}</h3><p className="producer">{producer} <span className="verified"><Icon name="check" size={10} /></span></p>
+      <div className="price-row"><strong>{price}</strong><s>{regular}</s><span>/ unit</span></div>
+      <div className="micro-row"><span><Icon name="users" size={14} /> {progress} buyers</span><span><Icon name="pin" size={14} /> 7km</span></div>
+      <Progress value={progress} />
+      <div className="card-footer"><span><strong>{progress}/100</strong> · {needed} needed</span><Button onClick={onClick}>Join group</Button></div>
+    </div>
+  </article>;
+}
+
+function Home({ go }: { go: (s: Screen) => void }) {
+  const categories = [
+    ["Groceries", "🥬"], ["Farm produce", "🍅"], ["Household", "🧺"], ["Electronics", "💡"],
+    ["Building", "🧱"], ["Beauty", "🧴"], ["Baby", "🍼"],
+  ];
+  return <main className="page home-page">
+    <AppHeader onProfile={() => go("profile")} />
+    <section className="welcome"><div><p>Good morning, Zainab</p><h1>Let’s buy better, together.</h1><span><Icon name="pin" size={15} /> Ikeja, Lagos <Icon name="chevron" size={13} /></span></div></section>
+    <SearchBox onClick={() => go("explore")} />
+    <section className="hero-banner">
+      <div className="hero-copy"><Badge tone="amber"><Icon name="sparkles" size={12} /> BUY TOGETHER</Badge><h2>Wholesale prices,<br />without the wholesale quantity.</h2><p>Join buyers near you and order directly from trusted producers.</p><Button variant="dark" onClick={() => go("groups")} icon="arrow">Explore group buys</Button></div>
+      <div className="hero-visual"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><img src={grainImage} alt="Open sacks of rice at a market" /><div className="floating-price"><span>Group price</span><strong>₦45k</strong><small>per bag</small></div></div>
+    </section>
+    <section className="section"><SectionTitle title="Popular near you" action="See all" onAction={() => go("explore")} />
+      <div className="product-grid"><ProductCard onClick={() => go("product")} /><ProductCard image={oilImage} title="5L Golden Cooking Oil" producer="Suncrest Foods" price="₦8,500" regular="₦10,200" progress={90} needed={20} onClick={() => go("product")} /></div>
+    </section>
+    <section className="section categories"><SectionTitle title="Shop by category" /><div className="category-row">{categories.map(([label, emoji]) => <button type="button" key={label} onClick={() => go("explore")}><span>{emoji}</span>{label}</button>)}</div></section>
+    <section className="ai-teaser" onClick={() => go("ai")}><span className="ai-icon"><Icon name="sparkles" /></span><div><Badge tone="neutral">MANDATEPAY AI</Badge><h3>Tell us what you need.</h3><p>Your intelligent buying agent will find the best group deal for you.</p></div><Icon name="arrow" /></section>
+  </main>;
+}
+
+function Explore({ go }: { go: (s: Screen) => void }) {
+  return <main className="page">
+    <AppHeader title="Explore" subtitle="Discover producer-direct deals" onProfile={() => go("profile")} />
+    <SearchBox text="Search products or producers" />
+    <div className="filter-row">{["Available groups", "Category", "Price", "Distance", "Rating"].map((f, i) => <button type="button" className={i === 0 ? "selected" : ""} key={f}>{f}{i > 0 && <Icon name="chevron" size={13} />}</button>)}</div>
+    <div className="results-head"><p><strong>28 deals</strong> near Ikeja</p><button type="button"><Icon name="sliders" size={16} /> Sort</button></div>
+    <div className="explore-grid">
+      <ProductCard onClick={() => go("product")} />
+      <ProductCard image={oilImage} title="5L Golden Cooking Oil" producer="Suncrest Foods" price="₦8,500" regular="₦10,200" progress={90} needed={20} onClick={() => go("product")} />
+      <ProductCard image={tomatoImage} title="Fresh Tomato Basket" producer="Ade Farms" price="₦18,500" regular="₦22,000" progress={48} needed={12} onClick={() => go("product")} />
+      <ProductCard image={grainImage} title="50kg Brown Beans" producer="NorthStar Grains" price="₦68,000" regular="₦76,500" progress={63} needed={37} onClick={() => go("product")} />
+    </div>
+  </main>;
+}
+
+function Product({ go }: { go: (s: Screen) => void }) {
+  const [quantity, setQuantity] = useState(1);
+  return <main className="page detail-page">
+    <AppHeader back onBack={() => go("home")} onProfile={() => go("profile")} />
+    <section className="product-hero"><img src={riceImage} alt="Premium long grain rice" /><div className="image-tags"><Badge>Verified direct producer</Badge><span>1 / 4</span></div></section>
+    <section className="detail-content">
+      <div className="detail-heading"><div><p className="eyebrow">FOOD & GROCERIES</p><h1>Premium Long Grain Rice — 25kg</h1><p className="producer large">GreenFields Farms <span className="verified"><Icon name="check" size={10} /></span></p></div><button type="button" className="heart">♡</button></div>
+      <div className="meta-row"><span><Icon name="star" className="star-icon" size={16} /> 4.8 <small>(128)</small></span><span><Icon name="pin" size={16} /> 7km away</span><span><Icon name="truck" size={16} /> 2–3 days</span></div>
+      <div className="price-panel"><div><span>Group-buy price</span><strong>₦45,000</strong><small>per 25kg bag</small></div><Badge>Save ₦7,000</Badge><div className="retail-price"><span>Direct price <strong>₦48,000</strong></span><span>Retail estimate <s>₦52,000</s></span></div></div>
+      <div className="group-panel">
+        <div className="group-panel-head"><div><p>GROUP BUY PROGRESS</p><strong>72 <span>/ 100 bags</span></strong></div><div className="closing"><Icon name="clock" size={15} /> Closes in 2 days</div></div>
+        <Progress value={72} /><div className="progress-labels"><span><strong>28 bags</strong> remaining</span><span>72 buyers joined</span></div>
+        <div className="buyer-faces"><span>AO</span><span>MK</span><span>TA</span><span>IB</span><span>+68</span><p>Buyers around Ikeja are filling this order</p></div>
+      </div>
+      <div className="info-callout"><Icon name="users" /><p><strong>Buy only what you need.</strong><br />Your order is combined with nearby buyers to unlock the producer’s bulk price.</p></div>
+      <div className="quantity-block"><div><span>Your quantity</span><small>₦45,000 per bag</small></div><div className="quantity-selector"><IconButton icon="minus" label="Decrease quantity" onClick={() => setQuantity(Math.max(1, quantity - 1))} /><strong>{quantity}</strong><IconButton icon="plus" label="Increase quantity" onClick={() => setQuantity(quantity + 1)} /></div></div>
+      <div className="sticky-action"><div><span>Total</span><strong>₦{(quantity * 45000).toLocaleString()}</strong></div><Button onClick={() => go("join")} icon="arrow">Join group buy</Button></div>
+    </section>
+  </main>;
+}
+
+function Join({ go }: { go: (s: Screen) => void }) {
+  return <main className="page narrow-page"><AppHeader back onBack={() => go("product")} title="Review" />
+    <section className="center-intro"><span className="round-icon green"><Icon name="users" /></span><h1>Join this Group Buy</h1><p>Reserve your quantity and join 72 buyers near you.</p></section>
+    <section className="summary-card"><div className="summary-product"><img src={riceImage} alt="Rice" /><div><h3>Premium Long Grain Rice</h3><p>25kg · GreenFields Farms</p></div></div><div className="summary-lines"><p><span>Quantity</span><strong>2 bags</strong></p><p><span>Price per bag</span><strong>₦45,000</strong></p><p><span>Expected savings</span><strong className="green-text">₦14,000</strong></p><p className="total-line"><span>Total</span><strong>₦90,000</strong></p></div></section>
+    <section className="how-card"><h2>How it works</h2>{["You reserve your quantity", "Other nearby buyers join", "The bulk target is reached", "Producer processes the combined order", "Your individual order is delivered"].map((item, i) => <div className="step" key={item}><span>{i + 1}</span><p>{item}</p></div>)}</section>
+    <div className="assurance"><Icon name="shield" /><p><strong>You only pay for your own order.</strong><br />Your ₦90,000 payment does not cover anyone else.</p></div>
+    <Button className="full-button" onClick={() => go("checkout")} icon="arrow">Continue to checkout</Button>
+  </main>;
+}
+
+function Checkout({ go }: { go: (s: Screen) => void }) {
+  return <main className="page narrow-page"><AppHeader back onBack={() => go("join")} title="Checkout" />
+    <section className="checkout-section"><SectionTitle title="Delivery address" /><div className="address-card"><span className="round-icon"><Icon name="pin" /></span><div><strong>Home</strong><p>12 Example Street<br />Ikeja, Lagos</p></div><button type="button">Change</button></div></section>
+    <section className="checkout-section"><SectionTitle title="Payment method" /><div className="payment-card selected-payment"><span className="wema-logo">W</span><div><strong>Pay with Wema</strong><p>Secure bank transfer or card</p></div><span className="radio-dot" /></div><div className="payment-card"><span className="round-icon"><Icon name="card" /></span><div><strong>Debit card</strong><p>Visa, Mastercard or Verve</p></div><span className="radio-empty" /></div><p className="secure-note"><Icon name="shield" size={15} /> Payments are securely processed by Wema</p></section>
+    <section className="checkout-section"><SectionTitle title="Order summary" /><div className="order-summary"><div className="summary-product compact"><img src={riceImage} alt="Rice" /><div><h3>Premium Long Grain Rice</h3><p>2 bags × ₦45,000</p></div></div><div className="summary-lines"><p><span>Subtotal</span><strong>₦90,000</strong></p><p><span>Delivery</span><strong>₦2,000</strong></p><p className="total-line"><span>Total</span><strong>₦92,000</strong></p></div></div></section>
+    <Button className="full-button" onClick={() => go("processing")} icon="shield">Pay ₦92,000 securely</Button>
+  </main>;
+}
+
+function Processing({ go, ai = false }: { go: (s: Screen) => void; ai?: boolean }) {
+  useEffect(() => { const timer = setTimeout(() => go(ai ? "ai-success" : "success"), 1800); return () => clearTimeout(timer); }, [go, ai]);
+  return <main className="page state-page"><div className="processing-mark"><span /><span /><Icon name="shield" size={31} /></div><Badge tone="neutral">SECURE PAYMENT</Badge><h1>Processing payment</h1><p>Securely processing your approved payment…</p><div className="state-detail"><p><span>Order ID</span><strong>MM-10482</strong></p><p><span>Amount</span><strong>{ai ? "₦90,000" : "₦92,000"}</strong></p><p><span>Payment provider</span><strong>Wema</strong></p></div><small>Please don’t close this screen.</small></main>;
+}
+
+function Success({ go, ai = false }: { go: (s: Screen) => void; ai?: boolean }) {
+  return <main className="page state-page success-page"><div className="success-check"><Icon name="check" size={38} /></div><Badge>PURCHASE COMPLETE</Badge><h1>{ai ? "MandatePay purchase complete" : "Payment successful"}</h1><p>{ai ? "MandatePay AI successfully initiated your approved payment." : "Your order has been added to the group purchase."}</p>
+    <div className="receipt-card"><div className="receipt-product"><img src={riceImage} alt="Rice" /><div><strong>Premium Long Grain Rice</strong><p>GreenFields Farms · 2 bags</p></div></div><div className="summary-lines"><p><span>Order ID</span><strong>MM-10482</strong></p><p><span>Transaction ID</span><strong>WMA-9421706</strong></p><p><span>Amount paid</span><strong>{ai ? "₦90,000" : "₦92,000"}</strong></p><p><span>Status</span><Badge>Payment successful</Badge></p></div></div>
+    <div className="new-progress"><div><span>Group progress</span><strong>74 / 100 bags</strong></div><Progress value={74} /><p>Your 2 bags moved the group closer to its target.</p></div>
+    <Button className="full-button" onClick={() => go("tracking")} icon="arrow">Track {ai ? "order" : "group buy"}</Button><Button className="full-button" variant="ghost" onClick={() => go("home")}>Back to home</Button>
+  </main>;
+}
+
+function GroupCard({ title, image, count, total, price, closing, onJoin }: { title: string; image: string; count: number; total: number; price: string; closing: string; onJoin: () => void }) {
+  return <article className="group-card"><img src={image} alt={title} /><div className="group-card-body"><div><Badge tone="amber"><Icon name="clock" size={12} /> {closing}</Badge><h3>{title}</h3><p><Icon name="pin" size={14} /> Ikeja, Lagos</p></div><div className="group-price"><strong>{price}</strong><span>/ unit</span></div><Progress value={count} total={total} /><div className="group-stats"><span><strong>{count}/{total}</strong> filled</span><span>{total - count} remaining</span></div><div className="group-card-footer"><div className="mini-faces"><span>ZA</span><span>KM</span><span>+{count - 2}</span></div><Button onClick={onJoin}>Join now</Button></div></div></article>;
+}
+
+function Groups({ go }: { go: (s: Screen) => void }) {
+  return <main className="page"><AppHeader title="Buy Together" subtitle="See what people around you are buying" onProfile={() => go("profile")} />
+    <section className="groups-hero"><div><Badge tone="neutral">IKEJA COMMUNITY</Badge><h1>Better prices happen when we buy together.</h1><p>Join active orders around you or start one for something you need.</p></div><Button variant="dark" onClick={() => go("start-group")} icon="plus">Start a group</Button></section>
+    <div className="filter-row"><button type="button" className="selected">All groups</button><button type="button">Closing soon</button><button type="button">Almost full</button><button type="button">Near me</button></div>
+    <section className="section"><SectionTitle title="Active near you" /><div className="groups-grid"><GroupCard title="Ikeja Rice Group" image={riceImage} count={74} total={100} price="₦45,000" closing="Closes in 2 days" onJoin={() => go("product")} /><GroupCard title="Golden Cooking Oil Group" image={oilImage} count={180} total={200} price="₦8,500" closing="Closes tomorrow" onJoin={() => go("product")} /><GroupCard title="Fresh Tomato Basket Group" image={tomatoImage} count={48} total={60} price="₦18,500" closing="Closes in 4 days" onJoin={() => go("product")} /></div></section>
+  </main>;
+}
+
+function StartGroup({ go }: { go: (s: Screen) => void }) {
+  return <main className="page narrow-page"><AppHeader back onBack={() => go("groups")} title="Start a Group Buy" />
+    <div className="form-intro"><span className="round-icon green"><Icon name="users" /></span><h1>What do you want to buy?</h1><p>We’ll share your request with buyers around you.</p></div>
+    <form className="group-form" onSubmit={(e) => { e.preventDefault(); go("group-created"); }}>
+      <label>Product<input defaultValue="Premium rice" /></label>
+      <div className="form-grid"><label>Quantity needed<input defaultValue="2 bags" /></label><label>Target price<input defaultValue="₦45,000" /></label></div>
+      <label>Location<div className="input-icon"><Icon name="pin" size={17} /><input defaultValue="Ikeja, Lagos" /></div></label>
+      <label>Preferred delivery date<input type="date" defaultValue="2025-10-18" /></label>
+      <label>Optional note<textarea placeholder="Add preferred brand, quality or delivery details…" /></label>
+      <Button className="full-button" icon="arrow">Create Group Buy</Button>
+    </form>
+  </main>;
+}
+
+function GroupCreated({ go }: { go: (s: Screen) => void }) {
+  return <main className="page state-page"><div className="success-check"><Icon name="check" size={38} /></div><h1>Your group buy is live!</h1><p>Other buyers around Ikeja can now discover and join your request.</p><div className="created-card"><Badge>ACTIVE</Badge><h3>Ikeja Premium Rice Group</h3><p>2 / 100 bags reserved</p><Progress value={2} /><small>Share with people nearby to reach the target faster.</small></div><Button className="full-button" onClick={() => go("groups")}>View my group</Button><Button className="full-button" variant="ghost" onClick={() => go("home")}>Back to home</Button></main>;
+}
+
+function AI({ go }: { go: (s: Screen) => void }) {
+  const [tab, setTab] = useState<"assistant" | "rules">("assistant");
+  const [message, setMessage] = useState("");
+  const [showResult, setShowResult] = useState(true);
+  return <main className="page ai-page"><AppHeader title="MandatePay AI" subtitle="Your intelligent buying assistant" onProfile={() => go("profile")} />
+    <section className="ai-status"><div className="ai-status-head"><span className="ai-orb"><Icon name="sparkles" /></span><div><Badge>ACTIVE</Badge><h2>Monitoring 2 buying rules</h2><p>MandatePay is checking live group buys for you.</p></div><span className="pulse" /></div><div className="rule-status-row"><div><span className="status-dot searching" /><p><strong>Rice</strong><small>Searching · Best match ₦45k/bag</small></p></div><span>₦100k max</span></div><div className="rule-status-row"><div><span className="status-dot waiting" /><p><strong>Cooking oil</strong><small>Waiting for group target</small></p></div><span>₦20k max</span></div></section>
+    <div className="segmented"><button type="button" className={tab === "assistant" ? "active" : ""} onClick={() => setTab("assistant")}><Icon name="sparkles" size={17} /> Assistant</button><button type="button" className={tab === "rules" ? "active" : ""} onClick={() => setTab("rules")}><Icon name="sliders" size={17} /> My buying rules</button></div>
+    {tab === "assistant" ? <section className="chat-area">
+      <div className="ai-explainer"><div><Icon name="target" /></div><p><strong>Tell me the outcome you want.</strong><br />I’ll search products, compare group deals, check your limits and ask before I pay.</p></div>
+      <div className="chat-thread"><div className="user-message">I need 2 bags of rice under ₦100,000. Find a verified producer within 10km with delivery in 3 days.</div>{showResult && <><div className="ai-message"><span className="ai-mini"><Icon name="sparkles" size={15} /></span><p>I found <strong>3 matching options.</strong> This one best matches all your requirements and saves you ₦14,000.</p></div><article className="ai-result"><div className="match-score"><Icon name="check" size={13} /> BEST MATCH · 98%</div><img src={riceImage} alt="Premium long grain rice" /><div className="ai-result-body"><h3>Premium Long Grain Rice</h3><p className="producer">GreenFields Farms <span className="verified"><Icon name="check" size={9} /></span></p><div className="ai-result-price"><strong>₦45,000 <small>/ bag</small></strong><Badge>Save ₦14,000</Badge></div><div className="criteria-grid"><span><Icon name="pin" size={15} /><strong>7km</strong><small>distance</small></span><span><Icon name="truck" size={15} /><strong>2–3 days</strong><small>delivery</small></span><span><Icon name="star" size={15} /><strong>4.8</strong><small>rating</small></span></div><div className="rule-check"><Icon name="shield" size={17} /><span>Matches all 6 of your buying conditions</span></div><Button className="full-button" onClick={() => go("ai-approval")} icon="arrow">Use this option</Button></div></article></>}</div>
+      <form className="chat-input" onSubmit={(e) => { e.preventDefault(); if (message.trim()) { setShowResult(true); setMessage(""); } }}><textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What would you like MandatePay to buy?" /><button type="submit" aria-label="Send request"><Icon name="send" size={19} /></button><small>MandatePay always follows your approval and payment limits.</small></form>
+    </section> : <BuyingRules />}
+  </main>;
+}
+
+function BuyingRules() {
+  const [enabled, setEnabled] = useState(true);
+  return <section className="rules-page"><div className="rules-intro"><h2>My Buying Rules</h2><p>Set the conditions MandatePay must follow when finding and completing purchases.</p></div><div className="existing-rule"><div className="existing-rule-head"><div><span className="round-icon"><Icon name="bag" /></span><div><h3>Premium Rice</h3><p>2 bags · Within 10km</p></div></div><Badge>MONITORING</Badge></div><div className="rule-metrics"><p><span>Maximum price</span><strong>₦50,000 / bag</strong></p><p><span>Maximum total</span><strong>₦100,000</strong></p><p><span>Producer</span><strong>Verified only</strong></p><p><span>Minimum rating</span><strong>4.5 stars</strong></p><p><span>Delivery</span><strong>Within 3 days</strong></p></div></div>
+    <div className="permission-card"><div className="permission-head"><span className="round-icon green"><Icon name="shield" /></span><div><h3>Payment permission</h3><p>Allow MandatePay AI to complete matching purchases</p></div><button type="button" className={`toggle ${enabled ? "on" : ""}`} onClick={() => setEnabled(!enabled)}><span /></button></div>{enabled && <div className="permission-details"><p><span>Maximum transaction</span><strong>₦100,000</strong></p><p><span>Payment method</span><strong>Wema ··· 2048</strong></p><p><span>Require confirmation</span><strong>Above ₦100,000</strong></p></div>}<div className="permission-note"><Icon name="shield" size={16} /> You can pause or revoke permission anytime.</div></div>
+    <Button className="full-button" icon="plus">Add new buying rule</Button></section>;
+}
+
+function AIApproval({ go }: { go: (s: Screen) => void }) {
+  return <main className="page narrow-page"><AppHeader back onBack={() => go("ai")} title="Purchase approval" /><section className="approval-hero"><span className="ai-orb large"><Icon name="sparkles" size={28} /></span><Badge tone="amber">ACTION REQUIRED</Badge><h1>MandatePay found a match</h1><p>This opportunity meets all your buying rules. Review and approve the purchase.</p></section>
+    <section className="rule-match"><div className="rule-match-head"><span>Your buying rule</span><Badge><Icon name="check" size={12} /> 6/6 MATCH</Badge></div><div className="match-list">{["2 bags of rice", "Under ₦100,000", "Verified producer", "Within 10km", "Rating above 4.5", "Delivery within 3 days"].map((x) => <p key={x}><Icon name="check" size={14} />{x}</p>)}</div></section>
+    <section className="matched-product"><div className="summary-product"><img src={riceImage} alt="Rice" /><div><Badge>BEST MATCH</Badge><h3>Premium Long Grain Rice</h3><p>GreenFields Farms ✓ · 7km</p></div></div><div className="purchase-math"><p><span>₦45,000 × 2 bags</span><strong>₦90,000</strong></p><p><span>Potential savings</span><strong className="green-text">₦14,000</strong></p></div></section>
+    <div className="approval-note"><Icon name="shield" /><p>MandatePay will initiate payment through your approved Wema method only after you approve.</p></div>
+    <Button className="full-button" onClick={() => go("ai-processing")} icon="check">Approve ₦90,000 purchase</Button><div className="dual-buttons"><Button variant="secondary" onClick={() => go("ai")}>Reject</Button><Button variant="ghost" onClick={() => go("product")}>View details</Button></div>
+  </main>;
+}
+
+function Orders({ go }: { go: (s: Screen) => void }) {
+  const [tab, setTab] = useState("active");
+  return <main className="page"><AppHeader title="My Orders" subtitle="Track purchases and group progress" onProfile={() => go("profile")} /><div className="order-tabs"><button type="button" className={tab === "active" ? "active" : ""} onClick={() => setTab("active")}>Active <span>2</span></button><button type="button" className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>Completed</button></div>
+    {tab === "active" ? <div className="orders-list"><article className="order-card"><div className="order-card-head"><Badge tone="amber"><span className="status-dot waiting" /> GROUP BUY ACTIVE</Badge><span>Oct 12</span></div><div className="summary-product"><img src={riceImage} alt="Rice" /><div><h3>Premium Long Grain Rice</h3><p>2 bags · GreenFields Farms</p><strong>₦90,000</strong></div></div><div className="order-progress"><div><span>Group progress</span><strong>74 / 100 bags</strong></div><Progress value={74} /><small>26 more bags needed · Closes in 2 days</small></div><Button className="full-button" variant="secondary" onClick={() => go("tracking")} icon="arrow">Track order</Button></article><article className="order-card"><div className="order-card-head"><Badge><span className="status-dot searching" /> PRODUCER PROCESSING</Badge><span>Oct 8</span></div><div className="summary-product"><img src={oilImage} alt="Oil" /><div><h3>Golden Cooking Oil</h3><p>2 bottles · Suncrest Foods</p><strong>₦17,000</strong></div></div><Button className="full-button" variant="secondary" onClick={() => go("tracking")}>Track order</Button></article></div> : <div className="empty-state"><span className="round-icon"><Icon name="bag" /></span><h2>No completed orders yet</h2><p>Your completed purchases will appear here.</p><Button onClick={() => go("explore")}>Explore products</Button></div>}
+  </main>;
+}
+
+function Tracking({ go }: { go: (s: Screen) => void }) {
+  const timeline = [["Payment confirmed", "Oct 12 · 10:42 AM", "done"], ["Group purchase joined", "Oct 12 · 10:43 AM", "done"], ["Waiting for group target", "74 of 100 bags reserved", "current"], ["Producer processing", "Starts after group target", ""], ["Dispatched", "Not yet available", ""], ["Delivered", "Expected Oct 18–19", ""]];
+  return <main className="page narrow-page"><AppHeader back onBack={() => go("orders")} title="Track order" /><div className="tracking-top"><Badge tone="amber">GROUP BUY ACTIVE</Badge><h1>Your group is nearly there</h1><p>26 more bags are needed before GreenFields Farms begins processing.</p><div className="tracking-progress"><strong>74%</strong><Progress value={74} /><span>74 / 100 bags</span></div></div>
+    <section className="timeline"><h2>Order timeline</h2>{timeline.map(([title, sub, status]) => <div className={`timeline-item ${status}`} key={title}><span>{status === "done" ? <Icon name="check" size={14} /> : status === "current" ? <span /> : ""}</span><div><strong>{title}</strong><p>{sub}</p></div></div>)}</section>
+    <section className="delivery-details"><h2>Order details</h2><p><span>Producer</span><strong>GreenFields Farms</strong></p><p><span>Delivery to</span><strong>12 Example Street, Ikeja</strong></p><p><span>Expected delivery</span><strong>Oct 18–19</strong></p><p><span>Order ID</span><strong>MM-10482</strong></p><p><span>Transaction ID</span><strong>WMA-9421706</strong></p></section>
+    <div className="support-link"><Icon name="headphones" /><div><strong>Need help with this order?</strong><p>Our support team is ready to help.</p></div><Icon name="chevron" /></div>
+  </main>;
+}
+
+function Profile({ go }: { go: (s: Screen) => void }) {
+  const menu: [IconName, string, string][] = [["bag", "My orders", "Track active and past orders"], ["sliders", "My buying rules", "Manage MandatePay preferences"], ["sparkles", "MandatePay AI", "Assistant activity and permissions"], ["card", "Payment methods", "Wema and approved methods"], ["pin", "Saved addresses", "2 delivery addresses"], ["bell", "Notifications", "Deals and order updates"], ["headphones", "Help & support", "FAQs and contact"], ["settings", "Settings", "Privacy and app preferences"]];
+  return <main className="page narrow-page"><AppHeader back onBack={() => go("home")} title="Profile" /><section className="profile-hero"><div className="profile-avatar">ZA</div><div><h1>Zainab Adesina</h1><p>+234 803 123 4567</p><span><Icon name="pin" size={14} /> Ikeja, Lagos</span></div><IconButton icon="edit" label="Edit profile" /></section><section className="profile-stats"><div><strong>4</strong><span>Group buys</span></div><div><strong>₦31k</strong><span>Total saved</span></div><div><strong>2</strong><span>Active rules</span></div></section><section className="profile-menu">{menu.map(([icon, title, sub]) => <button type="button" key={title} onClick={() => title === "My orders" ? go("orders") : title.includes("Mandate") || title.includes("rules") ? go("ai") : undefined}><span className="round-icon"><Icon name={icon} /></span><div><strong>{title}</strong><small>{sub}</small></div><Icon name="chevron" size={17} /></button>)}</section><Button className="full-button" variant="ghost">Sign out</Button></main>;
+}
+
+function Splash() {
+  return <div className="splash"><div className="splash-pattern" /><div className="splash-logo"><Logo /><p>Buy direct. Buy together. Save more.</p></div><div className="splash-loader"><span /></div></div>;
+}
+
+export default function App() {
+  const [screen, setScreen] = useState<Screen>("home");
+  const [splash, setSplash] = useState(true);
+  useEffect(() => { const timer = setTimeout(() => setSplash(false), 1200); return () => clearTimeout(timer); }, []);
+  const go = useMemo(() => (next: Screen) => { setScreen(next); window.scrollTo({ top: 0, behavior: "smooth" }); }, []);
+  if (splash) return <Splash />;
+  const content = (() => {
+    switch (screen) {
+      case "home": return <Home go={go} />;
+      case "explore": return <Explore go={go} />;
+      case "groups": return <Groups go={go} />;
+      case "product": return <Product go={go} />;
+      case "join": return <Join go={go} />;
+      case "checkout": return <Checkout go={go} />;
+      case "processing": return <Processing go={go} />;
+      case "success": return <Success go={go} />;
+      case "start-group": return <StartGroup go={go} />;
+      case "group-created": return <GroupCreated go={go} />;
+      case "ai": return <AI go={go} />;
+      case "ai-approval": return <AIApproval go={go} />;
+      case "ai-processing": return <Processing go={go} ai />;
+      case "ai-success": return <Success go={go} ai />;
+      case "orders": return <Orders go={go} />;
+      case "tracking": return <Tracking go={go} />;
+      case "profile": return <Profile go={go} />;
+    }
+  })();
+  const isRoot = ["home", "explore", "groups", "ai", "orders"].includes(screen);
+  return <div className="app-shell">{content}{isRoot && <Navigation active={screen} go={go} />}</div>;
+}

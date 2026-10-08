@@ -1,0 +1,1 @@
+"""MandatePay Gateway service."""
