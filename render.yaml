@@ -60,7 +60,7 @@ services:
   - type: web
     name: frontend
     env: static
-    buildCommand: cd frontend && npm install -g pnpm && pnpm install && pnpm run build
+    buildCommand: cd frontend && npm install && npx pnpm install && npx pnpm run build
     staticPublishPath: ./frontend/dist
     envVars:
       - key: VITE_API_URL
