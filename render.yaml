@@ -10,7 +10,7 @@ services:
     name: gateway
     env: docker
     plan: free
-    dockerContext: ./services/gateway
+    dockerContext: .
     dockerfilePath: ./services/gateway/Dockerfile
     envVars:
       - key: PORT

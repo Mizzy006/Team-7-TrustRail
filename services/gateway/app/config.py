@@ -9,7 +9,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # services/gateway/app/config.py -> repo root is parents[3]
-REPO_ROOT = Path(__file__).resolve().parents[3]
+try:
+    REPO_ROOT = Path(__file__).resolve().parents[3]
+except IndexError:
+    REPO_ROOT = Path("/app")
 GATEWAY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SEED_PATH = REPO_ROOT / "contracts" / "seed.json"
 MANDATE_SCHEMA_PATH = REPO_ROOT / "contracts" / "mandate.schema.json"
