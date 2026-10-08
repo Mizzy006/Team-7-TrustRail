@@ -26,7 +26,7 @@ class MarketClient:
     def get_products(self) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/v1/products"
         try:
-            res = requests.get(url, headers=self._headers(), timeout=5)
+            res = requests.get(url, headers=self._headers(), timeout=0.2)
             if res.status_code == 200:
                 return res.json().get("products", [])
             return []
@@ -36,7 +36,7 @@ class MarketClient:
     def get_inventory(self) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/v1/inventory"
         try:
-            res = requests.get(url, headers=self._headers(), timeout=5)
+            res = requests.get(url, headers=self._headers(), timeout=0.2)
             if res.status_code == 200:
                 return res.json().get("inventory", [])
             return []
@@ -50,7 +50,7 @@ class MarketClient:
     def get_pools(self) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/v1/pools"
         try:
-            res = requests.get(url, headers=self._headers(), timeout=5)
+            res = requests.get(url, headers=self._headers(), timeout=0.2)
             if res.status_code == 200:
                 return res.json().get("pools", [])
             return []

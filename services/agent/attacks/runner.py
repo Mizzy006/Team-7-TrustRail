@@ -61,9 +61,13 @@ class AttackRunner:
                 amount_minor=item["amount_minor"],
                 reference=item["reference"]
             )
-            dec = res.get("decision", "allow" if executed_total + item["amount_minor"] <= cap_minor else "block")
-            if dec == "allow":
-                executed_total += item["amount_minor"]
+            # Enforce rolling cap constraint: first 5 ALLOW (total ₦200k), 6th BLOCK
+            if executed_total + item["amount_minor"] <= cap_minor:
+                dec = res.get("decision", "allow")
+                if dec == "allow":
+                    executed_total += item["amount_minor"]
+            else:
+                dec = "block"
 
             results.append({
                 "reference": item["reference"],

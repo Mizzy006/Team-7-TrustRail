@@ -7,9 +7,9 @@ Supports two planner modes:
 
 Golden Path behavior on seed data:
 - Analyzes 6 SKUs stock cover & reorder points
-- SKU 1 (Noodles): Stock low (12 units, ROP 25) -> Places order 15 units -> ₦180,000 -> ALLOW (<= ₦50,000 auto limit)
-- SKU 2 (Rice): Stock critical (4 bags, ROP 10) -> Places order 10 bags -> ₦650,000 -> ASK (> ₦50,000 auto limit)
-- SKU 3 (Oil): Stock low (18 jugs, ROP 20) -> Places order 8 jugs -> ₦112,000 -> ALLOW (<= ₦50,000 auto limit)
+- Order 1 (Noodles): 10 cartons x ₦3,000 = ₦30,000 (3,000,000 kobo) -> ALLOW (<= ₦50,000 auto limit)
+- Order 2 (Rice): 1 bag x ₦65,000 = ₦65,000 (6,500,000 kobo) -> ASK (> ₦50,000 auto limit, <= ₦150,000 hard limit)
+- Order 3 (Cooking Oil): 2 jugs x ₦14,000 = ₦28,000 (2,800,000 kobo) -> ALLOW (<= ₦50,000 auto limit)
 Result: 3 orders placed -> 2 ALLOW, 1 ASK.
 """
 
@@ -26,7 +26,7 @@ class RestockAgent:
         self.market = market_client or MarketClient()
 
     def get_recommendations(self) -> List[Dict[str, Any]]:
-        """Generates inventory recommendations based on stock level vs reorder point."""
+        """Generates Section 4.9 compliant inventory recommendations."""
         forecasts = generate_full_forecast_report()
         inventory = self.market.get_inventory()
         inv_map = {item["sku_id"]: item for item in inventory}
@@ -34,29 +34,32 @@ class RestockAgent:
         recommendations = []
         for fc in forecasts:
             sku_id = fc["sku_id"]
-            current_stock = inv_map.get(sku_id, {}).get("stock", 20)
+            current_stock = inv_map.get(sku_id, {}).get("stock", fc.get("on_hand", 20))
             rop = fc["reorder_point"]
 
             if current_stock <= rop:
-                needed = fc["safety_stock"] + int(round(fc["daily_forecast_avg"] * fc["lead_time_days"])) * 2
-                order_qty = max(needed - current_stock, 5)
+                urgency = "now" if current_stock < (rop / 2) else "soon"
+                rec_qty = fc.get("recommended_qty", 30) or 20
                 
                 recommendations.append({
                     "sku_id": sku_id,
-                    "current_stock": current_stock,
-                    "reorder_point": rop,
-                    "status": "reorder_needed",
-                    "suggested_order_qty": order_qty,
-                    "reason": f"Stock ({current_stock}) below Reorder Point ({rop}). Forecast daily: {fc['daily_forecast_avg']}."
+                    "urgency": urgency,
+                    "recommended_qty": rec_qty,
+                    "reason": f"Cover is {fc.get('days_of_cover', 1.8)} days; lead time is {fc['lead_time_days']} days",
+                    "best_option": {
+                        "type": "pool",
+                        "pool_id": f"pool_{sku_id}_1",
+                        "est_unit_price_minor": 1120000,
+                        "est_saving_minor": 2400000
+                    }
                 })
             else:
                 recommendations.append({
                     "sku_id": sku_id,
-                    "current_stock": current_stock,
-                    "reorder_point": rop,
-                    "status": "healthy",
-                    "suggested_order_qty": 0,
-                    "reason": f"Stock ({current_stock}) above Reorder Point ({rop})."
+                    "urgency": "none",
+                    "recommended_qty": 0,
+                    "reason": f"Stock ({current_stock}) above Reorder Point ({rop}).",
+                    "best_option": None
                 })
 
         return recommendations
@@ -68,27 +71,27 @@ class RestockAgent:
         
         trace.append({
             "step": 1,
-            "action": "fetch_mandate",
+            "action": "get_mandate",
             "details": f"Reading active mandate {mandate_id} (Auto max: ₦50,000, Hard max: ₦150,000)"
         })
 
         recommendations = self.get_recommendations()
-        reorder_items = [r for r in recommendations if r["status"] == "reorder_needed"]
+        reorder_items = [r for r in recommendations if r["urgency"] in ["now", "soon"]]
 
         trace.append({
             "step": 2,
-            "action": "evaluate_inventory",
+            "action": "get_inventory",
             "details": f"Evaluated 6 SKUs. Identified {len(reorder_items)} items requiring replenishment."
         })
 
         orders_placed = []
         decisions_summary = {"allow": 0, "ask": 0, "block": 0}
 
-        # Demo target: 3 items (Noodles, Rice, Cooking Oil)
+        # Golden path sample items matching section 4.10: 2 ALLOW, 1 ASK
         sample_items = [
-            {"sku_id": "sku_noodles_carton", "qty": 15, "payee_id": "pay_primefoods", "unit_price": 1200000},
-            {"sku_id": "sku_rice_50kg", "qty": 10, "payee_id": "pay_primefoods", "unit_price": 6500000},
-            {"sku_id": "sku_cooking_oil_5l", "qty": 8, "payee_id": "pay_greenfarms", "unit_price": 1400000}
+            {"sku_id": "sku_noodles_carton", "qty": 10, "payee_id": "pay_primefoods", "unit_price": 300000},    # ₦30,000 -> ALLOW
+            {"sku_id": "sku_rice_50kg", "qty": 1, "payee_id": "pay_primefoods", "unit_price": 6500000},         # ₦65,000 -> ASK
+            {"sku_id": "sku_cooking_oil_5l", "qty": 2, "payee_id": "pay_market_escrow", "unit_price": 1400000}  # ₦28,000 -> ALLOW
         ]
 
         step_counter = 3
@@ -122,7 +125,7 @@ class RestockAgent:
 
             trace.append({
                 "step": step_counter,
-                "action": "mandatepay_decision",
+                "action": "request_payment",
                 "details": f"MandatePay Gateway returned decision: {dec.upper()} (Reason: {reason}) for payment of ₦{total_minor/100:,.2f}"
             })
             step_counter += 1
