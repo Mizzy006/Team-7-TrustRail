@@ -1,0 +1,695 @@
+openapi: 3.1.0
+info:
+  title: MandatePay Gateway API
+  version: 1.0.0
+  summary: Checkpoint between an AI agent and the owner's money (MOCK rail, no real funds).
+  description: |
+    SOURCE OF TRUTH for Backend, Frontend and Agent. Change only via PR (docs/PROJECT_SPEC.md section 5).
+
+    Conventions
+    - Money: integer minor units (kobo). Never floats. NGN only in the MVP.
+    - Time: UTC `YYYY-MM-DDTHH:MM:SSZ`, whole seconds.
+    - Ids: `<prefix>_<opaque>`. Prefixes: prn, agt, key, mdt, pay, pi, apr, hld, led.
+    - JSON field names are snake_case.
+    - Auth: `Authorization: Bearer <token>`. Owner, agent and service tokens are separate; a token only works on its own endpoints (403 otherwise).
+    - Policy outcomes (allow / ask / block) are DATA: HTTP 201 with a body. They are never HTTP errors.
+    - Errors: `{ "error": { "code", "message", "request_id" } }`. Codes: UNAUTHENTICATED(401), FORBIDDEN(403), NOT_FOUND(404), CONFLICT(409), IDEMPOTENCY_CONFLICT(409), VALIDATION_ERROR(422), SIGNATURE_INVALID(422), APPROVAL_NOT_PENDING(409), APPROVAL_MISMATCH(422).
+    - Signing and hashing rules: docs/PROJECT_SPEC.md section 4.3 and contracts/test-vectors/signing.json.
+    - Mock server: `npx @stoplight/prism-cli mock contracts/gateway.openapi.yaml -p 4010`. Send `Prefer: example=ask` (or allow / block) to pick an example.
+servers:
+  - url: http://localhost:8001
+    description: Local
+tags:
+  - { name: Owner, description: Owner (retailer) session token }
+  - { name: Agent, description: "Agent key. May propose payments and read its own mandate. Can never edit mandates, approve, or touch the rail." }
+  - { name: Internal, description: Service key (Market service only) }
+  - { name: Demo, description: Only when DEMO_MODE=true }
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [Owner]
+      summary: Liveness probe (no auth)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [status], properties: { status: { const: ok } } }
+  /v1/me:
+    get:
+      operationId: getMe
+      tags: [Owner]
+      summary: Current owner, registered keys, kill-switch state and server time
+      security: [{ ownerAuth: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/keys:
+    post:
+      operationId: registerKey
+      tags: [Owner]
+      summary: Register the owner's Ed25519 public key (generated in the browser)
+      description: "key_id is derived: `key_` + first 16 hex chars of SHA-256(raw 32-byte public key). Gateway recomputes it. Registering the same key twice returns 200 with the existing record (safe after a demo reset)."
+      security: [{ ownerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RegisterKeyRequest" } } }
+      responses:
+        "201": { description: Registered, content: { application/json: { schema: { $ref: "#/components/schemas/OwnerKey" } } } }
+        "200": { description: Already registered, content: { application/json: { schema: { $ref: "#/components/schemas/OwnerKey" } } } }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/payees:
+    get:
+      operationId: listPayees
+      tags: [Owner]
+      summary: Registered payees (for the mandate builder's allowlist picker)
+      security: [{ ownerAuth: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/Payee" } } } } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/mandates:
+    get:
+      operationId: listMandates
+      tags: [Owner]
+      summary: List mandates, newest first
+      security: [{ ownerAuth: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/MandateRecord" } } } } } } }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createMandate
+      tags: [Owner]
+      summary: Submit a signed mandate
+      description: |
+        Checks, in order: JSON Schema; semantic rules (spec 4.2); key_id belongs to principal; Ed25519 signature over the canonical JSON of `mandate`; payees exist; `supersedes` (if set) is the active mandate for the same agent. On success the previous active mandate for that agent becomes `superseded` in the same transaction. Mandates are immutable: there is no update endpoint.
+      security: [{ ownerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SignedMandate" } } }
+      responses:
+        "201": { description: Accepted, content: { application/json: { schema: { $ref: "#/components/schemas/MandateRecord" } } } }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/mandates/{mandate_id}:
+    get:
+      operationId: getMandate
+      tags: [Owner]
+      summary: Get one mandate
+      security: [{ ownerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/MandateId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/MandateRecord" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/mandates/{mandate_id}/revoke:
+    post:
+      operationId: revokeMandate
+      tags: [Owner]
+      summary: Revoke a mandate (tightening needs no signature)
+      security: [{ ownerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/MandateId" }]
+      responses:
+        "200": { description: Revoked, content: { application/json: { schema: { $ref: "#/components/schemas/MandateRecord" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/mandates/{mandate_id}/usage:
+    get:
+      operationId: getMandateUsage
+      tags: [Owner]
+      summary: Rolling-window spend, headroom and exposure (feeds the blast-radius meter)
+      security: [{ ownerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/MandateId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Usage" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/mandates/{mandate_id}/release-quarantine:
+    post:
+      operationId: releaseQuarantine
+      tags: [Owner]
+      summary: Owner lifts quarantine (blocks before this moment stop counting)
+      security: [{ ownerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/MandateId" }]
+      responses:
+        "200": { description: Released, content: { application/json: { schema: { $ref: "#/components/schemas/MandateRecord" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/agent/mandate:
+    get:
+      operationId: getAgentMandate
+      tags: [Agent]
+      summary: The agent's own active mandate and current usage (read-only)
+      security: [{ agentAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [mandate, usage]
+                properties:
+                  mandate: { $ref: "#/components/schemas/MandateRecord" }
+                  usage: { $ref: "#/components/schemas/Usage" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/payment-intents:
+    post:
+      operationId: createPaymentIntent
+      tags: [Agent]
+      summary: Propose a payment. Returns the decision (allow / ask / block) as data.
+      description: |
+        Evaluated by deterministic code (spec 4.4). ALLOW executes on the mock rail in the same transaction (status `executed`). ASK creates a pending approval (status `pending_approval`). BLOCK is final. Same Idempotency-Key + same body returns the original intent with 200; same key + different body is 409 IDEMPOTENCY_CONFLICT. `description` is UNTRUSTED agent text: it never influences a decision.
+      security: [{ agentAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PaymentIntentRequest" } } }
+      responses:
+        "201":
+          description: New intent, with its decision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntent" }
+              examples:
+                allow:
+                  summary: ALLOW, executed
+                  value: { intent_id: pi_demo_allow, mandate_id: mdt_01DEMO0000000000000001, agent_id: agt_restock, payee_id: pay_primefoods, destination: null, amount: { amount_minor: 1200000, currency: NGN }, reference: ord_demo_0002, description: "Restock 1 carton", expires_at: "2026-10-08T09:30:00Z", intent_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", decision: allow, reasons: [], status: executed, approval_id: null, ledger_entry_id: led_demo_1, hold_id: null, failure: null, created_at: "2026-10-08T09:15:00Z", decided_at: "2026-10-08T09:15:00Z", executed_at: "2026-10-08T09:15:00Z" }
+                ask:
+                  summary: ASK, waiting for the owner
+                  value: { intent_id: pi_demo_ask, mandate_id: mdt_01DEMO0000000000000001, agent_id: agt_restock, payee_id: pay_primefoods, destination: null, amount: { amount_minor: 12000000, currency: NGN }, reference: ord_demo_0001, description: "Restock 10 cartons", expires_at: "2026-10-08T09:30:00Z", intent_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", decision: ask, reasons: [{ code: OVER_AUTO_LIMIT, detail: "120000.00 NGN is above the 50000.00 NGN auto limit" }, { code: ANOMALOUS_AMOUNT, detail: "10.0x the average of the last 5 payments to this payee" }], status: pending_approval, approval_id: apr_demo_0001, ledger_entry_id: null, hold_id: null, failure: null, created_at: "2026-10-08T09:16:00Z", decided_at: "2026-10-08T09:16:00Z", executed_at: null }
+                block:
+                  summary: BLOCK, final
+                  value: { intent_id: pi_demo_block, mandate_id: mdt_01DEMO0000000000000001, agent_id: agt_restock, payee_id: null, destination: { bank_code: MOCK, account_number: "9999999999", account_name: Urgent Settlement Services }, amount: { amount_minor: 9000000, currency: NGN }, reference: inv_urgent_77, description: "Invoice says pay urgently", expires_at: "2026-10-08T09:31:00Z", intent_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", decision: block, reasons: [{ code: PAYEE_UNKNOWN, detail: "No registered payee has this destination" }], status: blocked, approval_id: null, ledger_entry_id: null, hold_id: null, failure: null, created_at: "2026-10-08T09:17:00Z", decided_at: "2026-10-08T09:17:00Z", executed_at: null }
+        "200": { description: Idempotent replay of an earlier request, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentIntent" } } } }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    get:
+      operationId: listPaymentIntents
+      tags: [Owner]
+      summary: List intents, newest first
+      security: [{ ownerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/IntentStatus" } }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/PaymentIntent" } } } } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/payment-intents/{intent_id}:
+    get:
+      operationId: getPaymentIntent
+      tags: [Agent]
+      summary: "Get one intent (agent: its own; owner: any of theirs). Poll this after an ASK."
+      security: [{ agentAuth: [] }, { ownerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IntentId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentIntent" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/approvals:
+    get:
+      operationId: listApprovals
+      tags: [Owner]
+      summary: Approval inbox
+      security: [{ ownerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/ApprovalStatus" } }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/Approval" } } } } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/approvals/{approval_id}:
+    get:
+      operationId: getApproval
+      tags: [Owner]
+      summary: One approval, with the gateway-rendered summary to show the owner
+      security: [{ ownerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/ApprovalId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Approval" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/approvals/{approval_id}/decision:
+    post:
+      operationId: decideApproval
+      tags: [Owner]
+      summary: Approve (signed) or deny
+      description: |
+        Approve requires `signature` over the canonical JSON of `statement` (spec 4.3). Gateway checks: approval is `pending` and unexpired (else 409 APPROVAL_NOT_PENDING); statement matches the stored approval_id, intent_id and intent_hash (else 422 APPROVAL_MISMATCH); signature verifies against a key registered to this principal (else 422 SIGNATURE_INVALID). Then, in one transaction with the principal row locked, it re-runs every BLOCK rule (not the ASK rules) and executes. A signed approval is single-use: it is consumed even if the re-check fails (intent becomes `failed`). Deny needs no signature.
+      security: [{ ownerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/ApprovalId" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ApprovalDecisionRequest" } } }
+      responses:
+        "200":
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [approval, intent]
+                properties:
+                  approval: { $ref: "#/components/schemas/Approval" }
+                  intent: { $ref: "#/components/schemas/PaymentIntent" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/kill-switch:
+    get:
+      operationId: getKillSwitch
+      tags: [Owner]
+      summary: Kill-switch state
+      security: [{ ownerAuth: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/KillSwitch" } } } }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: setKillSwitch
+      tags: [Owner]
+      summary: Turn the kill switch on or off. While on, every intent is BLOCKed and approvals cannot execute.
+      security: [{ ownerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [active]
+              properties:
+                active: { type: boolean }
+                reason: { type: string, maxLength: 200 }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/KillSwitch" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/audit:
+    get:
+      operationId: listAudit
+      tags: [Owner]
+      summary: Hash-chained audit log, oldest first. The console polls this with after_seq for the live feed.
+      security: [{ ownerAuth: [] }]
+      parameters:
+        - { name: after_seq, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_after_seq]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AuditEntry" } }
+                  next_after_seq: { type: integer, description: "Pass back as after_seq on the next poll" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/audit/verify:
+    get:
+      operationId: verifyAudit
+      tags: [Owner]
+      summary: Recompute the whole hash chain server-side ("Verify integrity" button)
+      security: [{ ownerAuth: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AuditVerification" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/accounts:
+    get:
+      operationId: listAccounts
+      tags: [Owner]
+      summary: Mock rail balances (owner wallet, escrow, payee accounts)
+      security: [{ ownerAuth: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/Account" } } } } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/ledger:
+    get:
+      operationId: listLedger
+      tags: [Owner]
+      summary: Mock rail ledger entries, newest first
+      security: [{ ownerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/LedgerEntry" } } } } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /internal/v1/intents/{intent_id}:
+    get:
+      operationId: getIntentInternal
+      tags: [Internal]
+      summary: Market verifies a payment itself instead of trusting the agent's word
+      security: [{ serviceAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IntentId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentIntent" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /internal/v1/holds/{hold_id}/settle:
+    post:
+      operationId: settleHold
+      tags: [Internal]
+      summary: Settle an escrow hold atomically - release to a producer and/or refund the originator
+      description: "release_minor + refund_minor must equal the hold amount (else 422). Pool failed: release_minor 0, refund everything. Pool succeeded: release qty x final price, refund the tier difference. Not subject to caps (it is settlement of money already spent)."
+      security: [{ serviceAuth: [] }]
+      parameters:
+        - { name: hold_id, in: path, required: true, schema: { type: string, pattern: "^hld_[A-Za-z0-9_-]{4,64}$" } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SettleHoldRequest" } } }
+      responses:
+        "200": { description: Settled, content: { application/json: { schema: { $ref: "#/components/schemas/SettleHoldResponse" } } } }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /demo/v1/reset:
+    post:
+      operationId: resetDemo
+      tags: [Demo]
+      summary: Wipe and reseed from contracts/seed.json (DEMO_MODE only). Owner must re-register key and re-sign a mandate.
+      security: [{ ownerAuth: [] }]
+      responses:
+        "204": { description: Reset }
+        default: { $ref: "#/components/responses/Error" }
+  /demo/v1/tamper-audit:
+    post:
+      operationId: tamperAudit
+      tags: [Demo]
+      summary: Edit one audit row directly in the DB so "Verify integrity" fails on stage (DEMO_MODE only)
+      security: [{ ownerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false, required: [seq], properties: { seq: { type: integer, minimum: 1 } } }
+      responses:
+        "204": { description: Tampered }
+        default: { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    ownerAuth: { type: http, scheme: bearer, description: "Mock persona token, e.g. tok_owner_ada" }
+    agentAuth: { type: http, scheme: bearer, description: "Agent key, e.g. key_agent_restock" }
+    serviceAuth: { type: http, scheme: bearer, description: "Service key, e.g. key_service_market" }
+  parameters:
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, description: "8-64 chars. Market uses the order_id.", schema: { type: string, minLength: 8, maxLength: 64 } }
+    MandateId: { name: mandate_id, in: path, required: true, schema: { type: string, pattern: "^mdt_[A-Za-z0-9_-]{6,64}$" } }
+    IntentId: { name: intent_id, in: path, required: true, schema: { type: string, pattern: "^pi_[A-Za-z0-9_-]{4,64}$" } }
+    ApprovalId: { name: approval_id, in: path, required: true, schema: { type: string, pattern: "^apr_[A-Za-z0-9_-]{4,64}$" } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+  responses:
+    Error:
+      description: Error
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            request_id: { type: string }
+    Timestamp: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$" }
+    Hash: { type: string, pattern: "^[0-9a-f]{64}$", description: lowercase hex SHA-256 }
+    Money:
+      type: object
+      additionalProperties: false
+      required: [amount_minor, currency]
+      properties:
+        amount_minor: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        currency: { type: string, pattern: "^[A-Z]{3}$", description: "Intents may carry any code; only NGN passes the CURRENCY_MISMATCH rule" }
+    Signature:
+      type: object
+      additionalProperties: false
+      required: [alg, key_id, value]
+      properties:
+        alg: { const: Ed25519 }
+        key_id: { type: string, pattern: "^key_[A-Za-z0-9_-]{2,64}$" }
+        value: { type: string, pattern: "^[A-Za-z0-9_-]{86}$", description: "base64url, no padding, of the 64-byte signature" }
+    SignedMandate:
+      type: object
+      additionalProperties: false
+      required: [mandate, signature]
+      properties:
+        mandate: { $ref: "./mandate.schema.json" }
+        signature: { $ref: "#/components/schemas/Signature" }
+    MandateRecord:
+      type: object
+      required: [mandate, signature, content_hash, status, quarantined, created_at]
+      properties:
+        mandate: { $ref: "./mandate.schema.json" }
+        signature: { $ref: "#/components/schemas/Signature" }
+        content_hash: { $ref: "#/components/schemas/Hash" }
+        status: { type: string, enum: [active, superseded, revoked, expired], description: "`expired` is computed from valid_until at read time" }
+        quarantined: { type: boolean }
+        superseded_by: { type: [string, "null"] }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    RegisterKeyRequest:
+      type: object
+      additionalProperties: false
+      required: [public_key]
+      properties:
+        public_key: { type: string, pattern: "^[A-Za-z0-9_-]{43}$", description: "base64url, no padding, of the raw 32-byte Ed25519 public key" }
+        label: { type: string, maxLength: 60 }
+    OwnerKey:
+      type: object
+      required: [key_id, principal_id, public_key, created_at]
+      properties:
+        key_id: { type: string }
+        principal_id: { type: string }
+        public_key: { type: string }
+        label: { type: [string, "null"] }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    KillSwitch:
+      type: object
+      required: [active, reason, changed_at]
+      properties:
+        active: { type: boolean }
+        reason: { type: [string, "null"] }
+        changed_at: { oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }] }
+    Me:
+      type: object
+      required: [principal_id, display_name, server_time, keys, kill_switch]
+      properties:
+        principal_id: { type: string }
+        display_name: { type: string }
+        server_time: { $ref: "#/components/schemas/Timestamp", description: "Use this, not the browser clock, for issued_at / valid_from when building a mandate" }
+        keys: { type: array, items: { $ref: "#/components/schemas/OwnerKey" } }
+        kill_switch: { $ref: "#/components/schemas/KillSwitch" }
+    Destination:
+      type: object
+      additionalProperties: false
+      required: [bank_code, account_number, account_name]
+      properties:
+        bank_code: { type: string, maxLength: 16 }
+        account_number: { type: string, pattern: "^[0-9]{10}$" }
+        account_name: { type: string, maxLength: 120 }
+    Payee:
+      type: object
+      required: [payee_id, name, kind, verified, destination]
+      properties:
+        payee_id: { type: string, pattern: "^pay_[A-Za-z0-9_-]{2,64}$" }
+        name: { type: string }
+        kind: { type: string, enum: [producer, escrow] }
+        verified: { type: boolean }
+        destination: { $ref: "#/components/schemas/Destination" }
+    ReasonCode:
+      type: string
+      description: "BLOCK: KILL_SWITCH_ACTIVE, NO_ACTIVE_MANDATE, MANDATE_NOT_YET_VALID, MANDATE_EXPIRED, CURRENCY_MISMATCH, PAYEE_UNKNOWN, DESTINATION_MISMATCH, PAYEE_NOT_ALLOWED, INTENT_EXPIRED, PER_TXN_HARD_MAX_EXCEEDED, WINDOW_CAP_EXCEEDED, INSUFFICIENT_FUNDS. ASK: QUARANTINED, OVER_AUTO_LIMIT, ANOMALOUS_AMOUNT."
+      enum:
+        - KILL_SWITCH_ACTIVE
+        - NO_ACTIVE_MANDATE
+        - MANDATE_NOT_YET_VALID
+        - MANDATE_EXPIRED
+        - CURRENCY_MISMATCH
+        - PAYEE_UNKNOWN
+        - DESTINATION_MISMATCH
+        - PAYEE_NOT_ALLOWED
+        - INTENT_EXPIRED
+        - PER_TXN_HARD_MAX_EXCEEDED
+        - WINDOW_CAP_EXCEEDED
+        - INSUFFICIENT_FUNDS
+        - QUARANTINED
+        - OVER_AUTO_LIMIT
+        - ANOMALOUS_AMOUNT
+    Reason:
+      type: object
+      required: [code, detail]
+      properties:
+        code: { $ref: "#/components/schemas/ReasonCode" }
+        detail: { type: string, description: "Human-readable, generated by the gateway" }
+    Decision: { type: string, enum: [allow, ask, block] }
+    IntentStatus: { type: string, enum: [blocked, pending_approval, executed, denied, expired, failed] }
+    ApprovalStatus: { type: string, enum: [pending, approved, denied, expired], description: "`approved` = signature accepted AND consumed in the same transaction (single-use)" }
+    PaymentIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, reference]
+      anyOf:
+        - { required: [payee_id] }
+        - { required: [destination] }
+      properties:
+        payee_id: { type: string, pattern: "^pay_[A-Za-z0-9_-]{2,64}$" }
+        destination: { $ref: "#/components/schemas/Destination" }
+        amount: { $ref: "#/components/schemas/Money" }
+        reference: { type: string, minLength: 1, maxLength: 64, description: "Market order_id (or any id the agent invents - the gateway does not trust it)" }
+        description: { type: string, maxLength: 280, description: "UNTRUSTED free text from the agent. Shown to the owner in a labelled box. Never used in decisions." }
+        expires_at: { $ref: "#/components/schemas/Timestamp" }
+    PaymentIntent:
+      type: object
+      required: [intent_id, mandate_id, agent_id, payee_id, destination, amount, reference, description, expires_at, intent_hash, decision, reasons, status, approval_id, ledger_entry_id, hold_id, failure, created_at, decided_at, executed_at]
+      properties:
+        intent_id: { type: string, pattern: "^pi_[A-Za-z0-9_-]{4,64}$" }
+        mandate_id: { type: [string, "null"], description: "null when NO_ACTIVE_MANDATE" }
+        agent_id: { type: string }
+        payee_id: { type: [string, "null"], description: "RESOLVED payee from the registry, not the agent's claim. null if unresolved." }
+        destination: { oneOf: [{ $ref: "#/components/schemas/Destination" }, { type: "null" }], description: "As submitted by the agent" }
+        amount: { $ref: "#/components/schemas/Money" }
+        reference: { type: string }
+        description: { type: [string, "null"] }
+        expires_at: { $ref: "#/components/schemas/Timestamp", description: "Defaults to created_at + 900s" }
+        intent_hash: { $ref: "#/components/schemas/Hash" }
+        decision: { $ref: "#/components/schemas/Decision" }
+        reasons: { type: array, items: { $ref: "#/components/schemas/Reason" }, description: "Primary reason first. Empty for a clean ALLOW." }
+        status: { $ref: "#/components/schemas/IntentStatus" }
+        approval_id: { type: [string, "null"] }
+        ledger_entry_id: { type: [string, "null"] }
+        hold_id: { type: [string, "null"], description: "Set when the payee is the escrow payee" }
+        failure: { oneOf: [{ $ref: "#/components/schemas/Reason" }, { type: "null" }], description: "Set when status=failed (re-check at approval time failed)" }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        decided_at: { $ref: "#/components/schemas/Timestamp" }
+        executed_at: { oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }] }
+    UsageWindow:
+      type: object
+      required: [name, seconds, cap_minor, spent_minor, remaining_minor]
+      properties:
+        name: { type: string }
+        seconds: { type: integer }
+        cap_minor: { type: integer }
+        spent_minor: { type: integer }
+        remaining_minor: { type: integer }
+    Usage:
+      type: object
+      required: [mandate_id, windows, wallet_balance, exposure_minor, quarantined]
+      properties:
+        mandate_id: { type: string }
+        windows: { type: array, items: { $ref: "#/components/schemas/UsageWindow" } }
+        wallet_balance: { $ref: "#/components/schemas/Money" }
+        exposure_minor: { type: integer, description: "min(remaining_minor over windows): the most the agent can still move without a human right now" }
+        quarantined: { type: boolean }
+    ApprovalBound:
+      type: object
+      description: "EXACTLY the fields hashed into intent_hash (spec 4.3). The approval screen must recompute the hash from these before signing."
+      required: [mandate_id, payee_id, amount_minor, currency, reference, expires_at]
+      properties:
+        mandate_id: { type: string }
+        payee_id: { type: [string, "null"] }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        reference: { type: string }
+        expires_at: { $ref: "#/components/schemas/Timestamp" }
+    ApprovalSummary:
+      type: object
+      description: Gateway-rendered facts for the approval screen. Never built from agent text.
+      required: [payee_name, payee_verified, reasons, windows]
+      properties:
+        payee_name: { type: [string, "null"] }
+        payee_verified: { type: boolean }
+        reasons: { type: array, items: { $ref: "#/components/schemas/Reason" } }
+        windows: { type: array, items: { $ref: "#/components/schemas/UsageWindow" }, description: Headroom if approved }
+    Approval:
+      type: object
+      required: [approval_id, intent_id, status, intent_hash, bound, summary, agent_description, expires_at, created_at, decided_at]
+      properties:
+        approval_id: { type: string, pattern: "^apr_[A-Za-z0-9_-]{4,64}$" }
+        intent_id: { type: string }
+        status: { $ref: "#/components/schemas/ApprovalStatus" }
+        intent_hash: { $ref: "#/components/schemas/Hash" }
+        bound: { $ref: "#/components/schemas/ApprovalBound" }
+        summary: { $ref: "#/components/schemas/ApprovalSummary" }
+        agent_description: { type: [string, "null"], description: "UNTRUSTED. Render in a clearly labelled 'The agent says' box, never as fact." }
+        expires_at: { $ref: "#/components/schemas/Timestamp" }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        decided_at: { oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }] }
+    ApprovalStatement:
+      type: object
+      additionalProperties: false
+      required: [type, approval_id, intent_id, intent_hash, decision]
+      properties:
+        type: { const: mandatepay/approval/v1 }
+        approval_id: { type: string }
+        intent_id: { type: string }
+        intent_hash: { $ref: "#/components/schemas/Hash" }
+        decision: { type: string, enum: [approve, deny] }
+    ApprovalDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [statement]
+      properties:
+        statement: { $ref: "#/components/schemas/ApprovalStatement" }
+        signature: { $ref: "#/components/schemas/Signature", description: "Required when statement.decision = approve" }
+    AuditEntry:
+      type: object
+      required: [seq, ts, type, principal_id, actor, subject, data, prev_hash, hash]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        ts: { $ref: "#/components/schemas/Timestamp" }
+        type:
+          type: string
+          description: "key.registered, mandate.created, mandate.superseded, mandate.revoked, intent.decided, approval.requested, approval.resolved, payment.executed, payment.failed, hold.settled, kill_switch.changed, quarantine.entered, quarantine.released, request.rejected"
+        principal_id: { type: string }
+        actor:
+          type: object
+          required: [type, id]
+          properties:
+            type: { type: string, enum: [owner, agent, service, system] }
+            id: { type: string }
+        subject:
+          type: object
+          required: [type, id]
+          properties:
+            type: { type: string, enum: [key, mandate, intent, approval, hold, kill_switch, request] }
+            id: { type: string }
+        data: { type: object, additionalProperties: true, description: "Event payload, see spec 4.6" }
+        prev_hash: { $ref: "#/components/schemas/Hash" }
+        hash: { $ref: "#/components/schemas/Hash" }
+    AuditVerification:
+      type: object
+      required: [ok, entries_checked, head_hash, first_bad_seq]
+      properties:
+        ok: { type: boolean }
+        entries_checked: { type: integer }
+        head_hash: { $ref: "#/components/schemas/Hash" }
+        first_bad_seq: { type: [integer, "null"] }
+    Account:
+      type: object
+      required: [account_id, type, owner_id, balance]
+      properties:
+        account_id: { type: string }
+        type: { type: string, enum: [wallet, payee, escrow] }
+        owner_id: { type: string, description: principal_id or payee_id }
+        balance: { $ref: "#/components/schemas/Money" }
+    LedgerEntry:
+      type: object
+      required: [entry_id, kind, from_account, to_account, amount, intent_id, hold_id, created_at]
+      properties:
+        entry_id: { type: string, pattern: "^led_[A-Za-z0-9_-]{4,64}$" }
+        kind: { type: string, enum: [transfer, hold, settle_release, settle_refund] }
+        from_account: { type: string }
+        to_account: { type: string }
+        amount: { $ref: "#/components/schemas/Money" }
+        intent_id: { type: [string, "null"] }
+        hold_id: { type: [string, "null"] }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    SettleHoldRequest:
+      type: object
+      additionalProperties: false
+      required: [release_to_payee_id, release_minor, refund_minor]
+      properties:
+        release_to_payee_id: { type: [string, "null"], description: "null when release_minor is 0" }
+        release_minor: { type: integer, minimum: 0 }
+        refund_minor: { type: integer, minimum: 0 }
+    SettleHoldResponse:
+      type: object
+      required: [hold_id, entries]
+      properties:
+        hold_id: { type: string }
+        entries: { type: array, items: { $ref: "#/components/schemas/LedgerEntry" } }

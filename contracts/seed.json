@@ -1,0 +1,47 @@
+{
+  "_comment": "Shared demo constants. Gateway, Market and Agent seed scripts all read this file so ids and numbers never drift. Money = integer kobo (NGN minor units). DEMO ONLY: tokens and accounts are fake; nothing here is real.",
+  "currency": "NGN",
+  "personas": [
+    { "persona_id": "ada", "role": "retailer_owner", "display_name": "Ada (Ada's Provisions)", "principal_id": "prn_ada", "retailer_id": "rtl_ada", "token": "tok_owner_ada" },
+    { "persona_id": "prime", "role": "producer_admin", "display_name": "Prime Foods Ltd (supplier)", "producer_id": "prd_primefoods", "token": "tok_producer_prime" }
+  ],
+  "agents": [
+    { "agent_id": "agt_restock", "principal_id": "prn_ada", "key": "key_agent_restock", "note": "Used by BOTH the honest restock agent and the gullible demo agent." }
+  ],
+  "service_keys": { "market": "key_service_market" },
+  "producers": [
+    { "producer_id": "prd_primefoods", "name": "Prime Foods Ltd", "payee_id": "pay_primefoods" },
+    { "producer_id": "prd_sunbev", "name": "Sunrise Beverages", "payee_id": "pay_sunbev" },
+    { "producer_id": "prd_greenfarms", "name": "Green Farms Co-op", "payee_id": "pay_greenfarms" }
+  ],
+  "payees": [
+    { "payee_id": "pay_primefoods", "name": "Prime Foods Ltd", "kind": "producer", "verified": true, "destination": { "bank_code": "MOCK", "account_number": "1001000001", "account_name": "Prime Foods Ltd" }, "in_default_mandate": true },
+    { "payee_id": "pay_sunbev", "name": "Sunrise Beverages", "kind": "producer", "verified": true, "destination": { "bank_code": "MOCK", "account_number": "1001000002", "account_name": "Sunrise Beverages" }, "in_default_mandate": true },
+    { "payee_id": "pay_market_escrow", "name": "Marketplace Escrow", "kind": "escrow", "verified": true, "destination": { "bank_code": "MOCK", "account_number": "1001000003", "account_name": "Marketplace Escrow" }, "in_default_mandate": true },
+    { "payee_id": "pay_greenfarms", "name": "Green Farms Co-op", "kind": "producer", "verified": true, "destination": { "bank_code": "MOCK", "account_number": "1001000004", "account_name": "Green Farms Co-op" }, "in_default_mandate": false }
+  ],
+  "accounts": [
+    { "account_id": "acct_wallet_ada", "type": "wallet", "owner_id": "prn_ada", "balance_minor": 200000000 }
+  ],
+  "payee_history": [
+    { "payee_id": "pay_primefoods", "principal_id": "prn_ada", "count": 5, "amount_minor": 1200000, "executed_days_ago_between": [8, 30], "note": "Older than the longest window so it never counts toward caps; it only feeds the anomaly average (12,000 NGN)." }
+  ],
+  "default_demo_mandate": {
+    "purpose": "Restock shop inventory from approved suppliers and pools",
+    "valid_for_seconds": 604800,
+    "payees": ["pay_primefoods", "pay_sunbev", "pay_market_escrow"],
+    "limits": {
+      "per_txn": { "auto_max_minor": 5000000, "hard_max_minor": 15000000 },
+      "windows": [
+        { "name": "daily", "seconds": 86400, "cap_minor": 20000000 },
+        { "name": "weekly", "seconds": 604800, "cap_minor": 60000000 }
+      ]
+    },
+    "ask_rules": { "approval_ttl_seconds": 900, "anomaly": { "enabled": true, "history_count": 5, "percent_of_average": 300 } },
+    "quarantine": { "blocked_attempts": 3, "window_seconds": 600 }
+  },
+  "attacker": {
+    "unknown_destination": { "bank_code": "MOCK", "account_number": "9999999999", "account_name": "Urgent Settlement Services" },
+    "swapped_account_number_for_primefoods": "1001999999"
+  }
+}

@@ -1,0 +1,13 @@
+# Codeowners mapping for MandatePay / TrustRail monorepo
+/contracts/                   @backend @software-dev
+/services/gateway/            @backend
+/services/market/             @software-dev
+/services/agent/              @ml
+/apps/web/app/(console)/      @frontend
+/apps/web/components/ui-kit/  @frontend
+/apps/web/app/(retail)/       @software-dev
+/design/                      @designer
+/docs/                        @designer @software-dev
+/Makefile                     @software-dev
+/docker-compose.yml           @software-dev
+/.github/                     @software-dev

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MandatePay Mandate v1",
+  "description": "Unsigned body of a mandate. The owner signs the RFC 8785 canonical JSON of this object with Ed25519; the signature travels beside it in a SignedMandate envelope (see gateway.openapi.yaml). Immutable once signed: to change anything, issue a new mandate that supersedes this one. Money is integer minor units (kobo for NGN). No floats anywhere in this object. Extra server-side rules that JSON Schema cannot express are listed in docs/PROJECT_SPEC.md section 4.2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "mandate_id", "principal_id", "agent_id", "key_id",
+    "issued_at", "valid_from", "valid_until", "currency",
+    "payees", "limits", "ask_rules", "quarantine"
+  ],
+  "properties": {
+    "schema_version": { "const": "mandatepay/mandate/v1" },
+    "mandate_id": {
+      "type": "string",
+      "pattern": "^mdt_[A-Za-z0-9_-]{6,64}$",
+      "description": "Generated client-side (mdt_ + ULID or UUID without dashes). Gateway rejects duplicates."
+    },
+    "principal_id": { "type": "string", "pattern": "^prn_[A-Za-z0-9_-]{2,64}$" },
+    "agent_id": { "type": "string", "pattern": "^agt_[A-Za-z0-9_-]{2,64}$" },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[A-Za-z0-9_-]{2,64}$",
+      "description": "Owner key that signs this mandate. Must be registered to principal_id."
+    },
+    "supersedes": {
+      "type": ["string", "null"],
+      "pattern": "^mdt_[A-Za-z0-9_-]{6,64}$",
+      "description": "Previous active mandate for the same agent, if any. It becomes 'superseded' when this one is accepted."
+    },
+    "issued_at": { "$ref": "#/$defs/timestamp" },
+    "valid_from": { "$ref": "#/$defs/timestamp" },
+    "valid_until": { "$ref": "#/$defs/timestamp" },
+    "currency": { "type": "string", "enum": ["NGN"] },
+    "purpose": {
+      "type": "string",
+      "maxLength": 280,
+      "description": "Human-readable intent shown in the UI. Never read by the policy engine."
+    },
+    "payees": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^pay_[A-Za-z0-9_-]{2,64}$" },
+      "description": "Allowlist of registered payee ids. Anything else is BLOCKed."
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["per_txn", "windows"],
+      "properties": {
+        "per_txn": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["auto_max_minor", "hard_max_minor"],
+          "properties": {
+            "auto_max_minor": {
+              "$ref": "#/$defs/minor",
+              "description": "At or below this the agent may pay without asking (if no ASK rule fires)."
+            },
+            "hard_max_minor": {
+              "$ref": "#/$defs/minor",
+              "description": "Above this: always BLOCK. Between auto_max and hard_max: ASK. Must be >= auto_max_minor (checked server-side)."
+            }
+          }
+        },
+        "windows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "description": "Rolling windows. Spend = executed payments by this agent for this principal in the last `seconds`, across all mandates. A payment that would push spend above cap_minor is BLOCKed. Approvals cannot override a cap.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "seconds", "cap_minor"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z0-9_]{1,24}$" },
+              "seconds": { "type": "integer", "minimum": 60, "maximum": 2592000 },
+              "cap_minor": { "$ref": "#/$defs/minor" }
+            }
+          }
+        }
+      }
+    },
+    "ask_rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_ttl_seconds", "anomaly"],
+      "properties": {
+        "approval_ttl_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+        "anomaly": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "history_count", "percent_of_average"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "history_count": { "type": "integer", "minimum": 1, "maximum": 50 },
+            "percent_of_average": {
+              "type": "integer",
+              "minimum": 101,
+              "maximum": 10000,
+              "description": "ASK if amount > this % of the average of the last history_count executed payments to the same payee. Skipped until that many payments exist."
+            }
+          }
+        }
+      }
+    },
+    "quarantine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blocked_attempts", "window_seconds"],
+      "description": "If the agent collects this many BLOCK decisions within window_seconds, the mandate is quarantined: every otherwise-ALLOW payment becomes ASK until the owner releases it.",
+      "properties": {
+        "blocked_attempts": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "window_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 }
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "UTC, whole seconds, always the trailing Z. Strict on purpose so canonical bytes match across languages."
+    },
+    "minor": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+  }
+}

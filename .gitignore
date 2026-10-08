@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+.env.local
+
+# Node
+node_modules/
+.next/
+dist/
+out/
+build/
+.cache/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Data temporary / generated PDF extraction
+pdf_pages/
+extract_pdf.py

@@ -1,0 +1,91 @@
+{
+  "_comment": "Interop test vectors. Backend (Python) and Frontend (TypeScript) MUST both reproduce every derived value from the inputs. DEMO key only; never use this seed anywhere real.",
+  "rules": {
+    "canonicalization": "RFC 8785 (JCS). Signed objects contain no floats, so json.dumps(obj, sort_keys=True, separators=(',', ':'), ensure_ascii=False) is byte-identical. Bytes = UTF-8.",
+    "signature": "Ed25519 over the canonical bytes. Encoded base64url, no padding.",
+    "public_key": "raw 32 bytes, base64url, no padding",
+    "key_id": "'key_' + first 16 hex chars of SHA-256(raw public key bytes)",
+    "hashes": "lowercase hex SHA-256 of the canonical UTF-8 bytes"
+  },
+  "key": {
+    "private_key_seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "public_key_b64url": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+    "key_id": "key_56475aa75463474c"
+  },
+  "mandate_vector": {
+    "mandate": {
+      "schema_version": "mandatepay/mandate/v1",
+      "mandate_id": "mdt_01DEMO0000000000000001",
+      "principal_id": "prn_ada",
+      "agent_id": "agt_restock",
+      "key_id": "key_56475aa75463474c",
+      "supersedes": null,
+      "issued_at": "2026-10-08T09:00:00Z",
+      "valid_from": "2026-10-08T09:00:00Z",
+      "valid_until": "2026-10-15T09:00:00Z",
+      "currency": "NGN",
+      "purpose": "Restock shop inventory from approved suppliers and pools (cap ₦200,000/day)",
+      "payees": [
+        "pay_primefoods",
+        "pay_sunbev",
+        "pay_market_escrow"
+      ],
+      "limits": {
+        "per_txn": {
+          "auto_max_minor": 5000000,
+          "hard_max_minor": 15000000
+        },
+        "windows": [
+          {
+            "name": "daily",
+            "seconds": 86400,
+            "cap_minor": 20000000
+          },
+          {
+            "name": "weekly",
+            "seconds": 604800,
+            "cap_minor": 60000000
+          }
+        ]
+      },
+      "ask_rules": {
+        "approval_ttl_seconds": 900,
+        "anomaly": {
+          "enabled": true,
+          "history_count": 5,
+          "percent_of_average": 300
+        }
+      },
+      "quarantine": {
+        "blocked_attempts": 3,
+        "window_seconds": 600
+      }
+    },
+    "canonical_json": "{\"agent_id\":\"agt_restock\",\"ask_rules\":{\"anomaly\":{\"enabled\":true,\"history_count\":5,\"percent_of_average\":300},\"approval_ttl_seconds\":900},\"currency\":\"NGN\",\"issued_at\":\"2026-10-08T09:00:00Z\",\"key_id\":\"key_56475aa75463474c\",\"limits\":{\"per_txn\":{\"auto_max_minor\":5000000,\"hard_max_minor\":15000000},\"windows\":[{\"cap_minor\":20000000,\"name\":\"daily\",\"seconds\":86400},{\"cap_minor\":60000000,\"name\":\"weekly\",\"seconds\":604800}]},\"mandate_id\":\"mdt_01DEMO0000000000000001\",\"payees\":[\"pay_primefoods\",\"pay_sunbev\",\"pay_market_escrow\"],\"principal_id\":\"prn_ada\",\"purpose\":\"Restock shop inventory from approved suppliers and pools (cap ₦200,000/day)\",\"quarantine\":{\"blocked_attempts\":3,\"window_seconds\":600},\"schema_version\":\"mandatepay/mandate/v1\",\"supersedes\":null,\"valid_from\":\"2026-10-08T09:00:00Z\",\"valid_until\":\"2026-10-15T09:00:00Z\"}",
+    "content_hash": "d7bc8b692a8db6f1025abb8e51803ca16fc4f704d7814b55e34341afd2995325",
+    "signature_b64url": "5J8INk7scZuMpmF0oV7mzLYS6lZ1RazqkIlbDBlQeM_k0ZDE4tl9xFiw0VjK7HQpOjVAD1KysrM372yDVmWzBw"
+  },
+  "intent_hash_vector": {
+    "bound": {
+      "mandate_id": "mdt_01DEMO0000000000000001",
+      "payee_id": "pay_primefoods",
+      "amount_minor": 12000000,
+      "currency": "NGN",
+      "reference": "ord_demo_0001",
+      "expires_at": "2026-10-08T09:30:00Z"
+    },
+    "canonical_json": "{\"amount_minor\":12000000,\"currency\":\"NGN\",\"expires_at\":\"2026-10-08T09:30:00Z\",\"mandate_id\":\"mdt_01DEMO0000000000000001\",\"payee_id\":\"pay_primefoods\",\"reference\":\"ord_demo_0001\"}",
+    "intent_hash": "d1b827ab186a445d9b735728f955a68083c74843d11d6f65958c5ccb8f0f26f2"
+  },
+  "approval_vector": {
+    "statement": {
+      "type": "mandatepay/approval/v1",
+      "approval_id": "apr_demo_0001",
+      "intent_id": "pi_demo_ask",
+      "intent_hash": "d1b827ab186a445d9b735728f955a68083c74843d11d6f65958c5ccb8f0f26f2",
+      "decision": "approve"
+    },
+    "canonical_json": "{\"approval_id\":\"apr_demo_0001\",\"decision\":\"approve\",\"intent_hash\":\"d1b827ab186a445d9b735728f955a68083c74843d11d6f65958c5ccb8f0f26f2\",\"intent_id\":\"pi_demo_ask\",\"type\":\"mandatepay/approval/v1\"}",
+    "signature_b64url": "dfW9QbG8bBe35WgQlqRPlQJfZZ6Gtd7OpPScAH8mrpbQTn7ReozyRDbPqeq2psq4GQupvl1rWUyMuGtuk9HLCw"
+  }
+}

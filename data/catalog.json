@@ -1,0 +1,117 @@
+{
+  "currency": "NGN",
+  "products": [
+    {
+      "sku_id": "sku_noodles_carton",
+      "sku_name": "Instant Noodles (Carton of 40)",
+      "category": "Packaged Food",
+      "unit": "carton",
+      "producer_id": "prd_primefoods",
+      "producer_name": "Prime Foods Ltd",
+      "payee_id": "pay_primefoods",
+      "base_unit_price_minor": 1200000,
+      "moq": 10,
+      "lead_time_days": 2,
+      "reorder_point": 25,
+      "target_stock": 50,
+      "tiers": [
+        { "min_qty": 1, "unit_price_minor": 1200000 },
+        { "min_qty": 50, "unit_price_minor": 1120000 },
+        { "min_qty": 200, "unit_price_minor": 1050000 }
+      ]
+    },
+    {
+      "sku_id": "sku_rice_50kg",
+      "sku_name": "Parboiled Rice (50kg Bag)",
+      "category": "Grains",
+      "unit": "bag",
+      "producer_id": "prd_primefoods",
+      "producer_name": "Prime Foods Ltd",
+      "payee_id": "pay_primefoods",
+      "base_unit_price_minor": 6500000,
+      "moq": 5,
+      "lead_time_days": 3,
+      "reorder_point": 10,
+      "target_stock": 25,
+      "tiers": [
+        { "min_qty": 1, "unit_price_minor": 6500000 },
+        { "min_qty": 20, "unit_price_minor": 6100000 },
+        { "min_qty": 100, "unit_price_minor": 5750000 }
+      ]
+    },
+    {
+      "sku_id": "sku_cooking_oil_5l",
+      "sku_name": "Vegetable Cooking Oil (5L Jug)",
+      "category": "Oils & Fats",
+      "unit": "jug",
+      "producer_id": "prd_greenfarms",
+      "producer_name": "Green Farms Co-op",
+      "payee_id": "pay_greenfarms",
+      "base_unit_price_minor": 1400000,
+      "moq": 8,
+      "lead_time_days": 2,
+      "reorder_point": 20,
+      "target_stock": 40,
+      "tiers": [
+        { "min_qty": 1, "unit_price_minor": 1400000 },
+        { "min_qty": 30, "unit_price_minor": 1300000 },
+        { "min_qty": 150, "unit_price_minor": 1200000 }
+      ]
+    },
+    {
+      "sku_id": "sku_malt_crate",
+      "sku_name": "Malt Drink (Crate of 24)",
+      "category": "Beverages",
+      "unit": "crate",
+      "producer_id": "prd_sunbev",
+      "producer_name": "Sunrise Beverages",
+      "payee_id": "pay_sunbev",
+      "base_unit_price_minor": 950000,
+      "moq": 12,
+      "lead_time_days": 1,
+      "reorder_point": 30,
+      "target_stock": 60,
+      "tiers": [
+        { "min_qty": 1, "unit_price_minor": 950000 },
+        { "min_qty": 40, "unit_price_minor": 880000 },
+        { "min_qty": 200, "unit_price_minor": 820000 }
+      ]
+    },
+    {
+      "sku_id": "sku_sugar_50kg",
+      "sku_name": "Refined White Sugar (50kg Bag)",
+      "category": "Grains & Baking",
+      "unit": "bag",
+      "producer_id": "prd_primefoods",
+      "producer_name": "Prime Foods Ltd",
+      "payee_id": "pay_primefoods",
+      "base_unit_price_minor": 5800000,
+      "moq": 5,
+      "lead_time_days": 3,
+      "reorder_point": 12,
+      "target_stock": 30,
+      "tiers": [
+        { "min_qty": 1, "unit_price_minor": 5800000 },
+        { "min_qty": 25, "unit_price_minor": 5450000 }
+      ]
+    },
+    {
+      "sku_id": "sku_evap_milk_case",
+      "sku_name": "Evaporated Milk (Case of 48)",
+      "category": "Dairy",
+      "unit": "case",
+      "producer_id": "prd_sunbev",
+      "producer_name": "Sunrise Beverages",
+      "payee_id": "pay_sunbev",
+      "base_unit_price_minor": 1850000,
+      "moq": 10,
+      "lead_time_days": 2,
+      "reorder_point": 15,
+      "target_stock": 35,
+      "tiers": [
+        { "min_qty": 1, "unit_price_minor": 1850000 },
+        { "min_qty": 50, "unit_price_minor": 1700000 }
+      ]
+    }
+  ]
+}

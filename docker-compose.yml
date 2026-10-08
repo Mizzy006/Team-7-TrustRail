@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: trustrail_postgres
+    environment:
+      POSTGRES_USER: trustrail
+      POSTGRES_PASSWORD: trustrail
+      POSTGRES_DB: gateway_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trustrail"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  gateway:
+    build:
+      context: ./services/gateway
+    container_name: trustrail_gateway
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - DATABASE_URL=postgresql://trustrail:trustrail@postgres:5432/gateway_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  market:
+    build:
+      context: ./services/market
+    container_name: trustrail_market
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - DATABASE_URL=postgresql://trustrail:trustrail@postgres:5432/market_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agent:
+    build:
+      context: ./services/agent
+    container_name: trustrail_agent
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - GATEWAY_URL=http://gateway:8001
+      - MARKET_URL=http://market:8002
+
+volumes:
+  pgdata:
