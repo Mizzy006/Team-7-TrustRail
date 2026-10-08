@@ -1,91 +1,117 @@
 {
-  "locality": "demo-locality",
-  "producers": [
-    { "producer_id": "prd_primefoods", "name": "Prime Foods Ltd", "payee_id": "pay_primefoods" },
-    { "producer_id": "prd_sunbeverages", "name": "Sun Beverages", "payee_id": "pay_sunbev" },
-    { "producer_id": "prd_greenfarms", "name": "Green Farms", "payee_id": "pay_greenfarms" }
-  ],
-  "skus": [
+  "currency": "NGN",
+  "products": [
     {
       "sku_id": "sku_noodles_carton",
-      "sku_name": "Indomie Noodles (carton)",
-      "producer_id": "prd_primefoods",
+      "sku_name": "Instant Noodles (Carton of 40)",
+      "category": "Packaged Food",
       "unit": "carton",
+      "producer_id": "prd_primefoods",
+      "producer_name": "Prime Foods Ltd",
+      "payee_id": "pay_primefoods",
+      "base_unit_price_minor": 1200000,
+      "moq": 10,
+      "lead_time_days": 2,
+      "reorder_point": 25,
+      "target_stock": 50,
       "tiers": [
         { "min_qty": 1, "unit_price_minor": 1200000 },
-        { "min_qty": 50, "unit_price_minor": 1100000 },
-        { "min_qty": 100, "unit_price_minor": 1050000 }
+        { "min_qty": 50, "unit_price_minor": 1120000 },
+        { "min_qty": 200, "unit_price_minor": 1050000 }
       ]
     },
     {
       "sku_id": "sku_rice_50kg",
-      "sku_name": "Rice 50kg bag",
+      "sku_name": "Parboiled Rice (50kg Bag)",
+      "category": "Grains",
+      "unit": "bag",
       "producer_id": "prd_primefoods",
-      "unit": "50kg bag",
+      "producer_name": "Prime Foods Ltd",
+      "payee_id": "pay_primefoods",
+      "base_unit_price_minor": 6500000,
+      "moq": 5,
+      "lead_time_days": 3,
+      "reorder_point": 10,
+      "target_stock": 25,
       "tiers": [
-        { "min_qty": 1, "unit_price_minor": 8500000 },
-        { "min_qty": 10, "unit_price_minor": 7800000 },
-        { "min_qty": 50, "unit_price_minor": 7500000 }
+        { "min_qty": 1, "unit_price_minor": 6500000 },
+        { "min_qty": 20, "unit_price_minor": 6100000 },
+        { "min_qty": 100, "unit_price_minor": 5750000 }
       ]
     },
     {
-      "sku_id": "sku_beans_50kg",
-      "sku_name": "Beans 50kg bag",
-      "producer_id": "prd_primefoods",
-      "unit": "50kg bag",
-      "tiers": [
-        { "min_qty": 1, "unit_price_minor": 8000000 },
-        { "min_qty": 10, "unit_price_minor": 7200000 },
-        { "min_qty": 50, "unit_price_minor": 7000000 }
-      ]
-    },
-    {
-      "sku_id": "sku_milk_carton",
-      "sku_name": "Peak Milk (carton)",
-      "producer_id": "prd_sunbeverages",
-      "unit": "carton",
-      "tiers": [
-        { "min_qty": 1, "unit_price_minor": 1500000 },
-        { "min_qty": 30, "unit_price_minor": 1350000 },
-        { "min_qty": 60, "unit_price_minor": 1280000 }
-      ]
-    },
-    {
-      "sku_id": "sku_malt_carton",
-      "sku_name": "Maltina (carton)",
-      "producer_id": "prd_sunbeverages",
-      "unit": "carton",
+      "sku_id": "sku_cooking_oil_5l",
+      "sku_name": "Vegetable Cooking Oil (5L Jug)",
+      "category": "Oils & Fats",
+      "unit": "jug",
+      "producer_id": "prd_greenfarms",
+      "producer_name": "Green Farms Co-op",
+      "payee_id": "pay_greenfarms",
+      "base_unit_price_minor": 1400000,
+      "moq": 8,
+      "lead_time_days": 2,
+      "reorder_point": 20,
+      "target_stock": 40,
       "tiers": [
         { "min_qty": 1, "unit_price_minor": 1400000 },
-        { "min_qty": 30, "unit_price_minor": 1280000 },
-        { "min_qty": 60, "unit_price_minor": 1220000 }
+        { "min_qty": 30, "unit_price_minor": 1300000 },
+        { "min_qty": 150, "unit_price_minor": 1200000 }
       ]
     },
     {
-      "sku_id": "sku_water_pack",
-      "sku_name": "Bottled Water (pack of 12)",
-      "producer_id": "prd_sunbeverages",
-      "unit": "pack",
+      "sku_id": "sku_malt_crate",
+      "sku_name": "Malt Drink (Crate of 24)",
+      "category": "Beverages",
+      "unit": "crate",
+      "producer_id": "prd_sunbev",
+      "producer_name": "Sunrise Beverages",
+      "payee_id": "pay_sunbev",
+      "base_unit_price_minor": 950000,
+      "moq": 12,
+      "lead_time_days": 1,
+      "reorder_point": 30,
+      "target_stock": 60,
       "tiers": [
-        { "min_qty": 1, "unit_price_minor": 500000 },
-        { "min_qty": 100, "unit_price_minor": 450000 }
+        { "min_qty": 1, "unit_price_minor": 950000 },
+        { "min_qty": 40, "unit_price_minor": 880000 },
+        { "min_qty": 200, "unit_price_minor": 820000 }
+      ]
+    },
+    {
+      "sku_id": "sku_sugar_50kg",
+      "sku_name": "Refined White Sugar (50kg Bag)",
+      "category": "Grains & Baking",
+      "unit": "bag",
+      "producer_id": "prd_primefoods",
+      "producer_name": "Prime Foods Ltd",
+      "payee_id": "pay_primefoods",
+      "base_unit_price_minor": 5800000,
+      "moq": 5,
+      "lead_time_days": 3,
+      "reorder_point": 12,
+      "target_stock": 30,
+      "tiers": [
+        { "min_qty": 1, "unit_price_minor": 5800000 },
+        { "min_qty": 25, "unit_price_minor": 5450000 }
+      ]
+    },
+    {
+      "sku_id": "sku_evap_milk_case",
+      "sku_name": "Evaporated Milk (Case of 48)",
+      "category": "Dairy",
+      "unit": "case",
+      "producer_id": "prd_sunbev",
+      "producer_name": "Sunrise Beverages",
+      "payee_id": "pay_sunbev",
+      "base_unit_price_minor": 1850000,
+      "moq": 10,
+      "lead_time_days": 2,
+      "reorder_point": 15,
+      "target_stock": 35,
+      "tiers": [
+        { "min_qty": 1, "unit_price_minor": 1850000 },
+        { "min_qty": 50, "unit_price_minor": 1700000 }
       ]
     }
-  ],
-  "seed_pools": [
-    { "pool_id": "pool_noodles_1", "sku_id": "sku_noodles_carton", "moq": 50, "committed_qty": 32, "status": "open" },
-    { "pool_id": "pool_rice_1", "sku_id": "sku_rice_50kg", "moq": 10, "committed_qty": 6, "status": "open" },
-    { "pool_id": "pool_beans_1", "sku_id": "sku_beans_50kg", "moq": 10, "committed_qty": 4, "status": "open" },
-    { "pool_id": "pool_milk_1", "sku_id": "sku_milk_carton", "moq": 30, "committed_qty": 12, "status": "open" },
-    { "pool_id": "pool_malt_1", "sku_id": "sku_malt_carton", "moq": 30, "committed_qty": 8, "status": "open" },
-    { "pool_id": "pool_water_1", "sku_id": "sku_water_pack", "moq": 100, "committed_qty": 40, "status": "open" }
-  ],
-  "seed_inventory": [
-    { "sku_id": "sku_noodles_carton", "on_hand": 14 },
-    { "sku_id": "sku_rice_50kg", "on_hand": 3 },
-    { "sku_id": "sku_beans_50kg", "on_hand": 4 },
-    { "sku_id": "sku_milk_carton", "on_hand": 20 },
-    { "sku_id": "sku_malt_carton", "on_hand": 22 },
-    { "sku_id": "sku_water_pack", "on_hand": 80 }
   ]
 }
