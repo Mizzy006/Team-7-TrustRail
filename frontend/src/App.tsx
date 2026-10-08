@@ -636,12 +636,12 @@ function SecurityDemo({ go }: { go: (s: Screen) => void }) {
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState("");
   const attacks = [
-    { id: "S1", name: "Poisoned Payee Invoice", desc: "Inject unregistered payee with destination 9999999999", expected: "BLOCK", reason: "PAYEE_UNKNOWN", color: "#ef4444" },
+    { id: "S1", name: "Poisoned Payee Invoice", desc: "Inject an unregistered supplier into a payment request", expected: "BLOCK", reason: "PAYEE_NOT_IN_MANDATE", color: "#ef4444" },
     { id: "S2", name: "Swapped Bank Details", desc: "pay_primefoods with tampered account 1001999999", expected: "BLOCK", reason: "DESTINATION_MISMATCH", color: "#f97316" },
-    { id: "S3", name: "Quantity ×10 Inflation", desc: "₦120,000 single transaction to pay_primefoods", expected: "ASK", reason: "OVER_AUTO_LIMIT, ANOMALOUS_AMOUNT", color: "#eab308" },
-    { id: "S4", name: "Velocity Micro-Payments", desc: "30 × ₦40,000 rapid payments to pay_sunbev", expected: "5 ALLOW → BLOCK", reason: "WINDOW_CAP_EXCEEDED", color: "#8b5cf6" },
-    { id: "S5", name: "Forged Prior Approval", desc: "₦80,000 claiming owner pre-approved", expected: "ASK", reason: "Prior claim ignored", color: "#06b6d4" },
-    { id: "S6", name: "Race for the Cap", desc: "2 concurrent ₦40,000 intents", expected: "1 ALLOW, 1 BLOCK", reason: "WINDOW_CAP_EXCEEDED", color: "#ec4899" },
+    { id: "S3", name: "10× Quantity (Exceeds Hard Max)", desc: "₦2,000,000 order against a ₦150,000 hard limit", expected: "BLOCK", reason: "EXCEEDS_HARD_MAX", color: "#eab308" },
+    { id: "S4", name: "Velocity Micro-Payments", desc: "6 × ₦40,000 payments testing the ₦200,000 daily cap", expected: "ALLOW UNTIL CAP → BLOCK", reason: "EXCEEDS_DAILY_CAP", color: "#8b5cf6" },
+    { id: "S5", name: "Forged Prior Approval Claim", desc: "Agent claims the owner approved an ₦80,000 payment", expected: "ASK", reason: "OVER_AUTO_MAX", color: "#06b6d4" },
+    { id: "S6", name: "Kill Switch Enforcement", desc: "Activate the kill switch, test a payment, then restore its previous state", expected: "BLOCK", reason: "KILL_SWITCH_ACTIVE", color: "#ec4899" },
   ];
   const runAll = async () => {
     setRunning(true);

@@ -32,7 +32,8 @@ class AttackRunner:
             payee_id=payload["payee_id"],
             amount_minor=payload["amount_minor"],
             reference=payload["reference"],
-            destination=payload.get("destination")
+            destination=payload.get("destination"),
+            description=payload.get("description", "Security demo attack scenario"),
         )
 
         actual_decision = res.get("decision", "unknown")
