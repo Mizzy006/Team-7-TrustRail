@@ -229,11 +229,26 @@ function Checkout({ go }: { go: (s: Screen) => void }) {
 }
 
 function Processing({ go, ai = false }: { go: (s: Screen) => void; ai?: boolean }) {
-  useEffect(() => { const timer = setTimeout(() => go(ai ? "ai-success" : "success"), 1800); return () => clearTimeout(timer); }, [go, ai]);
+  // If not AI mode, use the old hardcoded timer
+  useEffect(() => { 
+    if (!ai) {
+      const timer = setTimeout(() => go("success"), 1800); 
+      return () => clearTimeout(timer); 
+    }
+  }, [go, ai]);
   return <main className="page state-page"><div className="processing-mark"><span /><span /><Icon name="shield" size={31} /></div><Badge tone="neutral">SECURE PAYMENT</Badge><h1>Processing payment</h1><p>Securely processing your approved payment…</p><div className="state-detail"><p><span>Order ID</span><strong>MM-10482</strong></p><p><span>Amount</span><strong>{ai ? "₦90,000" : "₦92,000"}</strong></p><p><span>Payment provider</span><strong>Wema</strong></p></div><small>Please don’t close this screen.</small></main>;
 }
 
-function Success({ go, ai = false }: { go: (s: Screen) => void; ai?: boolean }) {
+function Success({ go, ai = false, aiData = null }: { go: (s: Screen) => void; ai?: boolean; aiData?: any }) {
+  const isBlock = aiData?.summary?.block > 0;
+  
+  if (isBlock) {
+    return <main className="page state-page success-page"><div className="success-check" style={{background: "#fee2e2", color: "#dc2626"}}><Icon name="shield" size={38} /></div><Badge tone="amber">PAYMENT BLOCKED</Badge><h1>Gateway Blocked Purchase</h1><p>The TrustRail Gateway successfully intercepted and blocked the agent's anomalous transaction.</p>
+      <div className="receipt-card"><div className="receipt-product"><img src={riceImage} alt="Rice" /><div><strong>Anomalous Payment Detected</strong><p>Security rules applied</p></div></div><div className="summary-lines"><p><span>Order ID</span><strong>MM-10482</strong></p><p><span>Status</span><Badge tone="amber">Blocked</Badge></p></div></div>
+      <Button className="full-button" onClick={() => go("home")} icon="arrow">Return safely</Button>
+    </main>;
+  }
+
   return <main className="page state-page success-page"><div className="success-check"><Icon name="check" size={38} /></div><Badge>PURCHASE COMPLETE</Badge><h1>{ai ? "MandatePay purchase complete" : "Payment successful"}</h1><p>{ai ? "MandatePay AI successfully initiated your approved payment." : "Your order has been added to the group purchase."}</p>
     <div className="receipt-card"><div className="receipt-product"><img src={riceImage} alt="Rice" /><div><strong>Premium Long Grain Rice</strong><p>GreenFields Farms · 2 bags</p></div></div><div className="summary-lines"><p><span>Order ID</span><strong>MM-10482</strong></p><p><span>Transaction ID</span><strong>WMA-9421706</strong></p><p><span>Amount paid</span><strong>{ai ? "₦90,000" : "₦92,000"}</strong></p><p><span>Status</span><Badge>Payment successful</Badge></p></div></div>
     <div className="new-progress"><div><span>Group progress</span><strong>74 / 100 bags</strong></div><Progress value={74} /><p>Your 2 bags moved the group closer to its target.</p></div>
@@ -293,12 +308,31 @@ function BuyingRules() {
     <Button className="full-button" icon="plus">Add new buying rule</Button></section>;
 }
 
-function AIApproval({ go }: { go: (s: Screen) => void }) {
+function AIApproval({ go, setAiData }: { go: (s: Screen) => void, setAiData?: any }) {
+  const handleApprove = async () => {
+    go("ai-processing");
+    try {
+      // Connect to the AI Agent Backend
+      const res = await fetch("http://localhost:8003/agent/v1/restock/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "scripted" })
+      });
+      const data = await res.json();
+      if (setAiData) setAiData(data);
+      // Wait for dramatic effect
+      setTimeout(() => go("ai-success"), 1500);
+    } catch (e) {
+      console.error("Backend link failed", e);
+      setTimeout(() => go("ai-success"), 1500);
+    }
+  };
+
   return <main className="page narrow-page"><AppHeader back onBack={() => go("ai")} title="Purchase approval" /><section className="approval-hero"><span className="ai-orb large"><Icon name="sparkles" size={28} /></span><Badge tone="amber">ACTION REQUIRED</Badge><h1>MandatePay found a match</h1><p>This opportunity meets all your buying rules. Review and approve the purchase.</p></section>
     <section className="rule-match"><div className="rule-match-head"><span>Your buying rule</span><Badge><Icon name="check" size={12} /> 6/6 MATCH</Badge></div><div className="match-list">{["2 bags of rice", "Under ₦100,000", "Verified producer", "Within 10km", "Rating above 4.5", "Delivery within 3 days"].map((x) => <p key={x}><Icon name="check" size={14} />{x}</p>)}</div></section>
     <section className="matched-product"><div className="summary-product"><img src={riceImage} alt="Rice" /><div><Badge>BEST MATCH</Badge><h3>Premium Long Grain Rice</h3><p>GreenFields Farms ✓ · 7km</p></div></div><div className="purchase-math"><p><span>₦45,000 × 2 bags</span><strong>₦90,000</strong></p><p><span>Potential savings</span><strong className="green-text">₦14,000</strong></p></div></section>
     <div className="approval-note"><Icon name="shield" /><p>MandatePay will initiate payment through your approved Wema method only after you approve.</p></div>
-    <Button className="full-button" onClick={() => go("ai-processing")} icon="check">Approve ₦90,000 purchase</Button><div className="dual-buttons"><Button variant="secondary" onClick={() => go("ai")}>Reject</Button><Button variant="ghost" onClick={() => go("product")}>View details</Button></div>
+    <Button className="full-button" onClick={handleApprove} icon="check">Approve ₦90,000 purchase</Button><div className="dual-buttons"><Button variant="secondary" onClick={() => go("ai")}>Reject</Button><Button variant="ghost" onClick={() => go("product")}>View details</Button></div>
   </main>;
 }
 
@@ -330,6 +364,8 @@ function Splash() {
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
   const [splash, setSplash] = useState(true);
+  const [aiData, setAiData] = useState<any>(null);
+  
   useEffect(() => { const timer = setTimeout(() => setSplash(false), 1200); return () => clearTimeout(timer); }, []);
   const go = useMemo(() => (next: Screen) => { setScreen(next); window.scrollTo({ top: 0, behavior: "smooth" }); }, []);
   if (splash) return <Splash />;
@@ -346,9 +382,9 @@ export default function App() {
       case "start-group": return <StartGroup go={go} />;
       case "group-created": return <GroupCreated go={go} />;
       case "ai": return <AI go={go} />;
-      case "ai-approval": return <AIApproval go={go} />;
+      case "ai-approval": return <AIApproval go={go} setAiData={setAiData} />;
       case "ai-processing": return <Processing go={go} ai />;
-      case "ai-success": return <Success go={go} ai />;
+      case "ai-success": return <Success go={go} ai aiData={aiData} />;
       case "orders": return <Orders go={go} />;
       case "tracking": return <Tracking go={go} />;
       case "profile": return <Profile go={go} />;
