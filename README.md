@@ -1,117 +1,175 @@
-# TrustRail — MandatePay Monorepo
+# MandateMarket · MandatePay
 
-> **Wema Hackaholics 7.0 Platform Project**  
-> Payment Safety Gateway & AI Inventory Restock Agent for Local Retailers.
+**A safer way for local retailers to restock together—with an explicit owner-controlled boundary between an AI agent and money.**
 
----
+MandateMarket helps neighbourhood retailers discover products, compare marketplace prices and coordinate bulk buying. Its restock agent can propose and place marketplace orders, while **MandatePay** checks every payment request against a mandate signed by the retailer. The agent can request a payment; it cannot expand its own authority or bypass the gateway.
 
-## Architecture Overview
+> Built for Wema Hackaholics 7.0. This is a demonstration system: authentication tokens, marketplace data and payment rails are for demo use. No real bank transfer or card payment is made.
 
+**Live demo:** [mandatemarket.vercel.app](https://mandatemarket.vercel.app/)<br>
+**Gateway API:** [gateway-u3w0.onrender.com](https://gateway-u3w0.onrender.com)<br>
+**Agent API:** [agent-2v5n.onrender.com](https://agent-2v5n.onrender.com)
+
+## The problem
+
+Small retailers often buy inventory in small quantities, through several intermediaries, and with limited visibility into fair prices or nearby demand. That can mean higher unit costs, stockouts and cash tied up in inventory. Group buying can improve purchasing power, but delegating restocking to software introduces a different risk: an AI agent can misunderstand a request, be manipulated by an invoice, or send money to the wrong destination.
+
+Giving an agent unrestricted payment credentials makes a mistake or attack potentially costly. A prompt, a confirmation in chat, or an agent’s own claim that a payment was approved is not a reliable authorization control.
+
+## The solution
+
+MandateMarket brings product discovery, demo marketplace orders and agent-assisted restocking into one retailer experience. MandatePay acts as a policy-enforcing gateway between the agent and the retailer’s funds:
+
+1. The owner defines permitted suppliers, per-payment thresholds and rolling spend caps.
+2. The owner signs the mandate in the browser. The Gateway verifies that signature and stores the active rules.
+3. The agent creates marketplace orders and submits payment intents using its limited agent credential.
+4. The Gateway makes the decision from the signed mandate and current state: allow within limits, ask the owner for approval, or block an unsafe request.
+5. Decisions and state changes are recorded in an auditable, hash-linked event log.
+
+The core principle is **bounded autonomy**: the agent can do routine work inside owner-approved limits, but the owner and Gateway retain control when a request needs approval or must be stopped.
+
+## What the demo shows
+
+- **Marketplace and group buying:** browse a seeded local catalog, view listed prices and explore community buying flows.
+- **Owner Console:** connect with a demo owner token and inspect wallet, active mandate, approvals, payment intents, kill switch and audit events.
+- **Signed mandate rules:** set allowed payees, automatic-payment and hard limits, and daily and weekly caps. Rule changes are signed in the browser and enforced by the Gateway.
+- **Restock agent:** run a deterministic Suggested plan or use the optional Groq-backed LLM mode. The agent uses marketplace products and prices, creates orders and submits payment intents to the Gateway.
+- **Owner approval:** payments above the automatic threshold can wait for an owner decision. Approval is signed and bound to the specific intent.
+- **Security scenarios:** demonstrate poisoned payees, changed bank destinations, oversized payments, spending velocity, forged approval claims and kill-switch enforcement.
+- **Audit and reset:** inspect gateway decisions and the hash-linked audit trail; reset demo state for a fresh walkthrough.
+
+With the default demo mandate, the scripted restock plan is designed to return **two ALLOW decisions and one ASK**. The default example uses a ₦50,000 automatic limit, a ₦150,000 hard per-payment limit, a ₦200,000 daily cap and a ₦600,000 weekly cap. These are demo values, editable in the Owner Console.
+
+## 2:30 demo video flow
+
+Prepare before recording: open the deployed app, connect the Owner Console, ensure an active signed mandate exists, and clear old demo activity if needed. After a reset, sign and activate a mandate again before running the agent. Keep the Console and Security Demo tabs ready so navigation is quick.
+
+| Time | Show | Suggested narration |
+|---|---|---|
+| **0:00–0:15** | Marketplace home or catalog | “Small retailers lose time and margin restocking alone. AI can help coordinate buying—but it should never have unrestricted access to the owner’s money.” |
+| **0:15–0:45** | Owner Console, active signed mandate and limits | “The owner sets the boundary: approved suppliers, an automatic limit, a hard ceiling and daily and weekly caps. These rules are signed by the owner and enforced by MandatePay.” Point to the active mandate and key thresholds. |
+| **0:45–1:10** | Suggested restock plan → approve → result | “The agent creates real demo marketplace orders at catalog prices. The Gateway evaluates each payment independently: two fit the automatic rules, while the larger order needs the owner.” Show the **2 allowed / 1 awaiting approval** result. |
+| **1:10–1:35** | Owner Console → pending approval → approve → audit log | “The owner reviews the exact payment and approves it. That approval is signed for this intent; the agent cannot approve its own request. The decision appears in the audit trail.” |
+| **1:35–2:05** | Security Demo; run one scenario such as swapped destination or oversized payment | “Now I change the destination / exceed the hard limit. Even if the agent requests it, the Gateway blocks it under the owner’s mandate.” Show the BLOCK reason. |
+| **2:05–2:25** | Audit log and mandate/usage summary | “Every important decision is visible and linked in the audit history. This is bounded autonomy: let the agent handle routine restocking, while the owner sets the rules and the Gateway enforces them.” |
+| **2:25–2:30** | End card / product name | “MandateMarket with MandatePay: group buying with guardrails for AI-driven payments.” |
+
+**Recording tips:** use one attack scenario rather than running all six; keep the mandate and console visible long enough to read the thresholds; avoid showing API keys or entering secrets on camera. If you reset state between takes, create a new signed mandate before the next restock run.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  U[Retailer / owner] --> FE[React + Vite frontend]
+  FE -->|owner token; signed mandate and approvals| GW[MandatePay Gateway]
+  FE -->|restock and security demo requests| AG[Restock Agent]
+  AG -->|catalog, inventory and order creation| MK[Marketplace service]
+  AG -->|payment intents with agent key| GW
+  MK -->|verify / reconcile intents with service key| GW
+  GW --> DB[(PostgreSQL)]
 ```
-                          ┌───────────────────────────┐
-                          │   apps/web (Next.js)      │
-                          │ Owner Console & Retail App│
-                          └─────────────┬─────────────┘
-                                        │
-             ┌──────────────────────────┴──────────────────────────┐
-             ▼                                                     ▼
-┌──────────────────────────┐                             ┌───────────────────┐
-│   services/agent (8003)  │                             │services/market    │
-│  ML Demand Forecaster,   ├────────────────────────────►│(8002) Catalog,    │
-│  Restock Agent & Attacks │                             │Pools & Orders     │
-└────────────┬─────────────┘                             └───────────────────┘
-             │ payment intents
-             ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│                       services/gateway (8001)                              │
-│         MandatePay Policy Engine, Signature Verifier & Audit Chain         │
-└────────────────────────────────────────────────────────────────────────────┘
-```
 
----
+The Gateway is the policy authority. The agent does not hold a bank credential, and the Gateway does not trust free-form agent text as authorization. In this demo, the gateway ledger/rail is simulated; the marketplace and service APIs are demo services.
 
-## Directory Layout
+## Repository layout
 
-```
+```text
 .
-├── .github/                 # CODEOWNERS, CI workflows, PR templates
-├── contracts/               # SOURCE OF TRUTH (Schemas, OpenAPI, Seed JSON)
-│   ├── gateway.openapi.yaml
-│   ├── mandate.schema.json
-│   ├── seed.json
-│   └── test-vectors/signing.json
-├── docs/                    # Architectural specs and docs
-│   └── PROJECT_SPEC.md
-├── data/                    # Seed catalog and synthetic sales data
-│   ├── catalog.json
-│   └── sales_90d.csv        # Generated via scripts/gen_sales.py (M1)
-├── scripts/                 # Utility scripts (Sales gen, contract validator)
-│   ├── check_contracts.py
-│   └── gen_sales.py
+├── contracts/              # Mandate schema, API contracts, signing vectors and shared seed
+├── data/                    # Demo catalog and generated sales history
+├── docs/                    # Project specification and supporting material
+├── frontend/                # React 19 + TypeScript + Vite retailer and owner UI
 ├── services/
-│   ├── gateway/             # MandatePay Gateway core (Port 8001 - Backend)
-│   ├── market/              # Bulk Marketplace API (Port 8002 - Software Dev)
-│   └── agent/               # ML Demand Forecaster & Restock Agent (Port 8003 - ML Eng)
-└── apps/
-    └── web/                 # Next.js MandatePay Console & Retailer Web App (Port 3000)
+│   ├── gateway/              # FastAPI policy engine, mandates, approvals, audit and mock rail
+│   ├── market/               # FastAPI catalog, inventory, pools and demo orders
+│   └── agent/                # FastAPI restock agent, forecasts and security scenarios
+├── scripts/                 # Contract checks, data generation and demo utilities
+├── docker-compose.yml       # Local backend stack
+└── render.yaml              # Render service configuration
 ```
 
----
+## Run locally
 
-## Quickstart
+### Requirements
 
-### 1. Environment Setup
+- Docker and Docker Compose for the backend services and PostgreSQL.
+- Node.js and npm for the frontend.
+- Python 3.11+ only if running an individual service outside Docker.
 
-Copy `.env.example` to `.env`:
+### Start the backend
+
+From the repository root:
 
 ```bash
-cp .env.example .env
+docker compose up --build
 ```
 
-The deployed MandateMarket frontend (`https://mandatemarket.vercel.app`) uses the TrustRail gateway at `https://gateway-u3w0.onrender.com` and the agent at `https://agent-2v5n.onrender.com`. These public service URLs are wired in the frontend fallback; the gateway CORS allowlist is in `render.yaml`. If a domain changes, update the frontend URL and allowlist. For local development, copy `frontend/.env.example` to `frontend/.env.local`. The owner bearer token is entered in the console and kept only for the browser session. After connecting, use **Sign & activate demo mandate** once to authorize the scripted scenario. Scripted mode needs no LLM key. To try Groq mode, set `GROQ_API_KEY` in the Render agent service environment; never commit the key.
+The Gateway is available at `http://localhost:8001`, Marketplace at `http://localhost:8002`, and Agent at `http://localhost:8003`. The Gateway creates its schema and seeds the demo owner, agent and payees at startup when its database is empty.
 
-### 2. Generate Synthetic Sales Data (M1 Task)
+### Start the frontend
+
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The local frontend defaults to the local Gateway and Agent. `frontend/.env.example` documents the optional Vite URL overrides:
+
+```dotenv
+VITE_API_URL=http://localhost:8001
+VITE_AGENT_URL=http://localhost:8003
+```
+
+After opening the app, go to **Profile → Owner Console**, connect with the seeded demo owner token `tok_owner_ada`, and choose **Sign & activate mandate** if there is no active mandate. The demo agent uses the seeded `key_agent_restock` credential to submit requests. Demo credentials are public fixtures, not production secrets.
+
+To generate synthetic sales data or check API contract consistency:
 
 ```bash
 python scripts/gen_sales.py
+python scripts/check_contracts.py
 ```
 
-Generates 90 days of daily sales for 6 SKUs with weekly seasonality, month-end uplift, and Gaussian noise into `data/sales_90d.csv`.
+## Configuration and deployment
 
-### 3. Run Agent Service & Forecast API
+The frontend is deployed on Vercel; the Gateway, Marketplace and Agent are configured as Render services in `render.yaml`. The frontend uses `VITE_API_URL` and `VITE_AGENT_URL` for service URLs; Vite variables are public and must never contain secrets.
 
-```bash
-cd services/agent
-pip install -r requirements.txt
-python main.py
-```
+The Suggested (scripted) restock mode is deterministic and needs no LLM key. The optional LLM mode uses Groq when `GROQ_API_KEY` is configured on the **Agent service**. Store the key as a secret environment variable on Render; do not put it in the frontend, commit it, or paste it into source control. If the LLM service is unavailable, the LLM run reports an error rather than silently changing the plan.
 
-Access API endpoints:
-- Liveness check: `GET http://localhost:8003/healthz`
-- 14-Day Demand Forecast: `GET http://localhost:8003/agent/v1/forecast`
-- Restock Recommendations: `GET http://localhost:8003/agent/v1/recommendations`
-- Trigger Agent Run: `POST http://localhost:8003/agent/v1/restock/runs`
-- Security Attack Runner: `POST http://localhost:8003/agent/v1/attacks/run`
+The demo owner token and agent key are seeded fixtures for this showcase. Use proper identity, key management, persistent production data, monitoring, and a real payment provider before any production use.
 
----
+## Security scenarios
 
-## Security Attack Scenarios (Red-Teaming MandatePay)
+| Scenario | Threat | Expected control |
+|---|---|---|
+| S1 · Poisoned payee | Invoice points to an unregistered supplier | Block because the payee is outside the signed allowlist |
+| S2 · Swapped destination | Supplier bank account is replaced | Block because the destination does not match the registered payee |
+| S3 · Inflated amount | A large order exceeds the hard per-payment ceiling | Block at the hard limit |
+| S4 · Velocity | Repeated payments exhaust the daily cap | Allow only within remaining cap; block once the cap would be exceeded |
+| S5 · Forged approval | Agent text claims the owner already approved | Require a valid owner decision bound to the exact payment intent |
+| S6 · Kill switch | Owner disables agent payments | Block new payment intents while the switch is active |
 
-The ML agent includes a red-teaming runner testing 6 attacks against MandatePay:
-1. **S1 (Poisoned Payee)**: Injected unregistered payee → `BLOCK (PAYEE_NOT_IN_MANDATE)`
-2. **S2 (Swapped Account)**: Modified bank account → `BLOCK (DESTINATION_MISMATCH)`
-3. **S3 (10x Quantity)**: Single ₦2.0M transaction → `BLOCK (EXCEEDS_HARD_MAX)`
-4. **S4 (Velocity Micro-Payments)**: 6x ₦40,000 requests → First 5 `ALLOW` (₦200k cap), 6th `BLOCK (EXCEEDS_DAILY_CAP)`
-5. **S5 (Forged Approval)**: Fake approval token → `BLOCK (APPROVAL_MISMATCH)`
-6. **S6 (Kill Switch)**: Owner kill switch engaged → `BLOCK (KILL_SWITCH_ACTIVE)`
+Run scenarios from **Profile → Security Demo**. For a clean run, reset the demo state and then reconnect the Owner Console and sign a fresh mandate. The attack suite may create several pending approvals as part of its scenarios; inspect the individual scenario results and audit events.
 
----
+## API health checks
 
-## Team Ownership
+- Gateway: `GET /healthz`
+- Marketplace: `GET /healthz`
+- Agent: `GET /healthz`
+- Agent forecast: `GET /agent/v1/forecast`
+- Agent restock run: `POST /agent/v1/restock/runs` then poll `GET /agent/v1/restock/runs/{run_id}`
+- Agent attack scenarios: `GET /agent/v1/attacks`
+- Gateway API contract: [`contracts/gateway.openapi.yaml`](contracts/gateway.openapi.yaml)
 
-| Component | Directory | Stack | Owner |
-|---|---|---|---|
-| Gateway | `services/gateway` | FastAPI, Postgres 16 | Backend |
-| Market | `services/market` | FastAPI, Postgres 16 | Software Dev |
-| Agent | `services/agent` | FastAPI, pandas, Groq LLM | ML Engineer |
-| Web App | `apps/web` | Next.js, TypeScript, Tailwind | Frontend / Software Dev |
+## Project documentation
+
+- [Project specification](docs/PROJECT_SPEC.md)
+- [Gateway service notes](services/gateway/README.md)
+- [Marketplace service notes](services/market/README.md)
+- [Agent service notes](services/agent/README.md)
+
+## License
+
+No license is currently specified. Contact the project maintainers before reusing this code outside the demo.
