@@ -16,7 +16,9 @@ Provides Section 4.9 compliant endpoints for:
 import logging
 import json
 import re
+import uuid
 import uvicorn
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, List, Optional
@@ -53,6 +55,7 @@ attack_runner = AttackRunner()
 # In-memory store for runs and attack history
 runs_store: Dict[str, Dict[str, Any]] = {}
 attack_history: List[Dict[str, Any]] = []
+run_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="restock-run")
 
 @app.get("/healthz")
 def health_check() -> Dict[str, str]:
@@ -132,24 +135,33 @@ def assistant_chat(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
 
 @app.post("/agent/v1/restock/runs")
 def trigger_restock_run(payload: Dict[str, Any] = Body(default={"mode": "scripted"})) -> Dict[str, Any]:
-    """Starts a restock run and returns run_id and initial status."""
+    """Start a restock run in the background so service-to-service calls don't hold the browser open."""
     mode = payload.get("mode", "scripted")
-    run_res = restock_agent.run_restock(mode=mode)
-    run_id = run_res["run_id"]
-    runs_store[run_id] = run_res
+    if mode not in {"scripted", "llm"}:
+        raise HTTPException(status_code=422, detail="mode must be scripted or llm")
+    run_id = f"run_{uuid.uuid4().hex[:12]}"
+    runs_store[run_id] = {"run_id": run_id, "mode": mode, "status": "running"}
+    run_executor.submit(_execute_restock_run, run_id, mode)
     return {
         "run_id": run_id,
-        "status": run_res["status"],
+        "status": "running",
         "mode": mode,
-        "summary": run_res.get("decisions_summary")
     }
+
+def _execute_restock_run(run_id: str, mode: str) -> None:
+    try:
+        result = restock_agent.run_restock(mode=mode)
+        result["run_id"] = run_id
+        runs_store[run_id] = result
+    except Exception as exc:
+        logger.exception("Restock run %s failed", run_id)
+        runs_store[run_id] = {"run_id": run_id, "mode": mode, "status": "failed", "error": str(exc)}
 
 @app.get("/agent/v1/restock/runs/{run_id}")
 def get_restock_run(run_id: str) -> Dict[str, Any]:
     """Returns step trace and outcomes for a restock run."""
     if run_id not in runs_store:
-        # Return fallback run if requested
-        return restock_agent.run_restock(mode="scripted")
+        raise HTTPException(status_code=404, detail="Restock run not found")
     return runs_store[run_id]
 
 @app.get("/agent/v1/attacks")

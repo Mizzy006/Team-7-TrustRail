@@ -372,20 +372,47 @@ function AIApproval({ go, setAiData }: { go: (s: Screen) => void, setAiData?: an
   const handleApprove = async () => {
     go("ai-processing");
     try {
-      const res = await fetch(`${agentBase}/agent/v1/restock/runs`, {
+      const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+      const request = async (url: string, init?: RequestInit, attempts = 4) => {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+          try {
+            const response = await fetch(url, init);
+            if (response.ok || response.status < 500) return response;
+            lastError = new Error(`Agent returned HTTP ${response.status}`);
+          } catch (error) {
+            lastError = error;
+          }
+          if (attempt < attempts - 1) await wait(1500 * (attempt + 1));
+        }
+        throw lastError instanceof Error ? lastError : new Error("Could not reach the agent service");
+      };
+
+      // Render's free service may be asleep. Wake it before submitting the run.
+      const health = await request(`${agentBase}/healthz`);
+      if (!health.ok) throw new Error(`Agent health check returned HTTP ${health.status}`);
+
+      const res = await request(`${agentBase}/agent/v1/restock/runs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode })
-      });
+      }, 1);
       const initial = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(initial.detail || `Agent returned HTTP ${res.status}`);
       let run = initial;
       if (initial.run_id) {
-        const details = await fetch(`${agentBase}/agent/v1/restock/runs/${encodeURIComponent(initial.run_id)}`);
-        if (details.ok) {
-          const detailData = await details.json();
+        const runUrl = `${agentBase}/agent/v1/restock/runs/${encodeURIComponent(initial.run_id)}`;
+        const deadline = Date.now() + 90000;
+        while (Date.now() < deadline) {
+          await wait(1500);
+          const details = await request(runUrl);
+          const detailData = await details.json().catch(() => ({}));
+          if (!details.ok) throw new Error(detailData.detail || `Agent returned HTTP ${details.status}`);
           run = { ...initial, ...detailData, summary: initial.summary || detailData.decisions_summary };
+          if (run.status === "completed") break;
+          if (run.status === "failed") throw new Error(run.error || "The agent run failed while contacting the gateway");
         }
+        if (run.status === "running") throw new Error("The agent run timed out while waiting for the gateway");
       }
       if (setAiData) setAiData(run);
       go("ai-success");
