@@ -88,7 +88,15 @@ class AttackRunner:
     def _run_s4_velocity_attack(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
         results = []
         executed_total = 0
-        cap_minor = 20000000  # ₦200,000 daily cap
+        mandate_response = self.gateway.get_agent_mandate()
+        mandate_record = mandate_response.get("mandate", {})
+        mandate = mandate_record.get("mandate", mandate_record)
+        usage_windows = mandate_response.get("usage", {}).get("windows", [])
+        window_headrooms = [int(w.get("remaining_minor", 0)) for w in usage_windows]
+        available_headroom = min(window_headrooms) if window_headrooms else 0
+        amount_minor = int(scenario["multi_payload"][0]["amount_minor"])
+        expected_allow_count = min(len(scenario["multi_payload"]), available_headroom // amount_minor)
+        cap_minor = min((int(w["cap_minor"]) for w in mandate.get("limits", {}).get("windows", [])), default=20000000)
 
         for item in scenario["multi_payload"]:
             res = self.gateway.request_payment(
@@ -108,8 +116,12 @@ class AttackRunner:
                 "reason_code": res.get("reason_code", "NO_REASON_RETURNED"),
             })
 
-        invariant_held = executed_total <= cap_minor and all(
-            item["decision"] in ("allow", "ask", "block") for item in results
+        expected_decisions = ["allow"] * expected_allow_count + ["block"] * (len(results) - expected_allow_count)
+        decisions = [item["decision"] for item in results]
+        invariant_held = (
+            decisions == expected_decisions
+            and all(item["reason_code"] == "WINDOW_CAP_EXCEEDED" for item in results[expected_allow_count:])
+            and executed_total <= available_headroom
         )
 
         return {
@@ -119,9 +131,13 @@ class AttackRunner:
             "actual_decision": "block" if any(item["decision"] == "block" for item in results) else "allow",
             "executed_total_minor": executed_total,
             "daily_cap_minor": cap_minor,
+            "expected_allow_count": expected_allow_count,
+            "actual_allow_count": sum(item["decision"] == "allow" for item in results),
             "invariant_held": invariant_held,
             "details": results
         }
 
     def run_all_scenarios(self) -> List[Dict[str, Any]]:
-        return [self.run_scenario(s["id"]) for s in ATTACK_SCENARIOS]
+        # Exercise the rolling cap before other scenarios can trigger quarantine.
+        scenario_ids = ["S4", "S1", "S2", "S3", "S5", "S6"]
+        return [self.run_scenario(scenario_id) for scenario_id in scenario_ids]
