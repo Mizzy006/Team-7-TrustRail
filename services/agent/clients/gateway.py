@@ -8,6 +8,7 @@ Typed client wrapper for calling MandatePay Gateway endpoints:
 """
 
 import requests
+import uuid
 from typing import Dict, Any, Optional
 from config import GATEWAY_URL, AGENT_KEY, OWNER_TOKEN, DEMO_MODE
 
@@ -17,13 +18,15 @@ class GatewayClient:
         self.agent_key = agent_key
         self.owner_token = owner_token
 
-    def _headers(self, prefer_example: Optional[str] = None) -> Dict[str, str]:
+    def _headers(self, prefer_example: Optional[str] = None, idempotency_key: Optional[str] = None) -> Dict[str, str]:
         headers = {
             "Authorization": f"Bearer {self.agent_key}",
             "Content-Type": "application/json"
         }
         if prefer_example:
             headers["Prefer"] = f"example={prefer_example}"
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         return headers
 
     def get_agent_mandate(self) -> Dict[str, Any]:
@@ -55,7 +58,6 @@ class GatewayClient:
         """Proposes a payment intent to MandatePay Gateway."""
         url = f"{self.base_url}/v1/payment-intents"
         payload = {
-            "mandate_id": mandate_id,
             "payee_id": payee_id,
             "amount": {
                 "amount_minor": amount_minor,
@@ -68,12 +70,24 @@ class GatewayClient:
             payload["destination"] = destination
 
         try:
-            res = requests.post(url, json=payload, headers=self._headers(prefer_example), timeout=10)
+            idempotency_key = f"demo_{uuid.uuid4().hex}"
+            res = requests.post(
+                url,
+                json=payload,
+                headers=self._headers(prefer_example, idempotency_key),
+                timeout=10,
+            )
             if res.status_code in [200, 201]:
-                return res.json()
+                result = res.json()
+                if not result.get("reason_code") and result.get("reasons"):
+                    result["reason_code"] = ", ".join(
+                        reason.get("code", "") for reason in result["reasons"] if reason.get("code")
+                    )
+                return result
             if not DEMO_MODE:
-                res.raise_for_status()
-                raise RuntimeError(f"Gateway returned HTTP {res.status_code}: {res.text}")
+                raise requests.HTTPError(
+                    f"Gateway returned HTTP {res.status_code}: {res.text}", response=res
+                )
         except requests.RequestException:
             if not DEMO_MODE:
                 raise
