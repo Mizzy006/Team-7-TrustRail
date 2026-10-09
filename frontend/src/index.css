@@ -270,6 +270,9 @@ h1, h2, h3, .logo { font-family: "Manrope", sans-serif; }
 .ai-explainer > div { color: #6049c3; }
 .ai-explainer p { color: #625c79; font-size: 11px; line-height: 1.5; }
 .ai-explainer strong { color: #2e2850; }
+.suggested-plan-entry { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.suggested-plan-entry strong { font-size: 12px; }
+.suggested-plan-entry p { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .chat-thread { padding: 25px 0 10px; }
 .user-message { width: 85%; margin-left: auto; padding: 15px 17px; border-radius: 17px 17px 4px 17px; background: var(--brand-900); color: #fff; font-size: 13px; line-height: 1.5; }
 .ai-message { display: flex; align-items: flex-start; gap: 9px; margin: 23px 0 13px; }
@@ -466,6 +469,8 @@ h1, h2, h3, .logo { font-family: "Manrope", sans-serif; }
   .ai-status { padding: 17px; }
   .ai-status-head h2 { font-size: 15px; }
   .ai-status-head p { line-height: 1.4; }
+  .suggested-plan-entry { grid-template-columns: auto minmax(0, 1fr); }
+  .suggested-plan-entry .btn { grid-column: 1 / -1; width: 100%; }
   .rule-status-row > span { display: none; }
   .ai-result { margin-left: 0; }
   .ai-result > img { height: 185px; }

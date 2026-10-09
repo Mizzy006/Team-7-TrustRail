@@ -346,6 +346,7 @@ function AI({ go }: { go: (s: Screen) => void }) {
     <div className="segmented"><button type="button" className={tab === "assistant" ? "active" : ""} onClick={() => setTab("assistant")}><Icon name="sparkles" size={17} /> Assistant</button><button type="button" className={tab === "rules" ? "active" : ""} onClick={() => setTab("rules")}><Icon name="sliders" size={17} /> My buying rules</button></div>
     {tab === "assistant" ? <section className="chat-area">
       <div className="ai-explainer"><div><Icon name="target" /></div><p><strong>What are you looking for?</strong><br />Recommendations use the live marketplace catalog. Payments are still checked against the signed mandate.</p></div>
+      <article className="suggested-plan-entry"><span className="round-icon"><Icon name="sparkles" /></span><div><strong>Suggested restock plan</strong><p>Review the curated demo plan and choose Suggested plan or LLM before it runs.</p></div><Button variant="secondary" onClick={() => go("ai-approval")}>Choose a plan</Button></article>
       <div className="chat-thread" aria-live="polite">
         {chatMessages.map((entry, index) => <div key={`${entry.role}-${index}`}>
           {entry.role === "user" ? <div className="user-message">{entry.text}</div> : <div className="ai-message"><span className="ai-mini"><Icon name="sparkles" size={15} /></span><p>{entry.text}</p></div>}
