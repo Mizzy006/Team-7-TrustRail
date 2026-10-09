@@ -252,7 +252,7 @@ function Processing({ go, ai = false }: { go: (s: Screen) => void; ai?: boolean 
       return () => clearTimeout(timer); 
     }
   }, [go, ai]);
-  return <main className="page state-page"><div className="processing-mark"><span /><span /><Icon name="shield" size={31} /></div><Badge tone="neutral">{ai ? "SCRIPTED AGENT RUN" : "SECURE PAYMENT"}</Badge><h1>{ai ? "Running restock agent" : "Processing payment"}</h1><p>{ai ? "The agent is submitting its restock plan to the MandatePay Gateway for policy decisions." : "Securely processing your approved payment…"}</p><div className="state-detail"><p><span>{ai ? "Mode" : "Order ID"}</span><strong>{ai ? "Scripted" : "MM-10482"}</strong></p><p><span>{ai ? "Payment decisions" : "Amount"}</span><strong>{ai ? "Gateway policy" : "₦92,000"}</strong></p><p><span>{ai ? "Service" : "Payment provider"}</span><strong>{ai ? "MandatePay Gateway" : "Wema"}</strong></p></div><small>{ai ? "Waiting for the agent service response…" : "Please don’t close this screen."}</small></main>;
+  return <main className="page state-page"><div className="processing-mark"><span /><span /><Icon name="shield" size={31} /></div><Badge tone="neutral">{ai ? "RESTOCK AGENT RUN" : "SECURE PAYMENT"}</Badge><h1>{ai ? "Running restock agent" : "Processing payment"}</h1><p>{ai ? "The agent is submitting its restock plan to the MandatePay Gateway for policy decisions." : "Securely processing your approved payment…"}</p><div className="state-detail"><p><span>{ai ? "Mode" : "Order ID"}</span><strong>{ai ? "Restock plan" : "MM-10482"}</strong></p><p><span>{ai ? "Payment decisions" : "Amount"}</span><strong>{ai ? "Gateway policy" : "₦92,000"}</strong></p><p><span>{ai ? "Service" : "Payment provider"}</span><strong>{ai ? "MandatePay Gateway" : "Wema"}</strong></p></div><small>{ai ? "Waiting for the agent service response…" : "Please don’t close this screen."}</small></main>;
 }
 
 function Success({ go, ai = false, aiData = null }: { go: (s: Screen) => void; ai?: boolean; aiData?: any }) {
@@ -262,7 +262,7 @@ function Success({ go, ai = false, aiData = null }: { go: (s: Screen) => void; a
   if (ai && aiData) {
     const summary = aiData.summary || aiData.decisions_summary || {};
     const orders = aiData.orders || [];
-    return <main className="page narrow-page state-page success-page"><div className="success-check"><Icon name="check" size={38} /></div><Badge>RESTOCK RUN COMPLETE · {String(aiData.mode || "scripted").toUpperCase()}</Badge><h1>Gateway decisions received</h1><p>The agent submitted its restock plan. Each payment follows the active mandate and gateway decision.</p><div className="receipt-card"><div className="summary-lines"><p><span>Run ID</span><strong>{aiData.run_id || "—"}</strong></p><p><span>Allowed</span><strong>{summary.allow ?? 0}</strong></p><p><span>Awaiting owner approval</span><strong>{summary.ask ?? 0}</strong></p><p><span>Blocked</span><strong>{summary.block ?? 0}</strong></p></div></div>{orders.length > 0 && <div className="orders-list">{orders.map((order: any) => <article className="order-card" key={order.intent_id || order.reference}><div className="audit-main"><strong>{order.sku_id}</strong><Badge tone={order.decision === "allow" ? "green" : order.decision === "ask" ? "amber" : "red"}>{String(order.decision || "unknown").toUpperCase()}</Badge></div><p className="producer">{order.reason_code || order.intent_id || "Gateway decision returned"}</p>{order.order_id && <p className="producer">Marketplace order {order.order_id} · {String(order.order_status || "").replace("_", " ")}</p>}</article>)}</div>}<Button className="full-button" onClick={() => go("console")} icon="shield">Review Owner Console</Button><Button className="full-button" variant="ghost" onClick={() => go("home")}>Back to home</Button></main>;
+    return <main className="page narrow-page state-page success-page"><div className="success-check"><Icon name="check" size={38} /></div><Badge>RESTOCK RUN COMPLETE · {aiData.mode === "llm" ? "LLM" : "SUGGESTED PLAN"}</Badge><h1>Gateway decisions received</h1><p>The agent submitted its restock plan. Each payment follows the active mandate and gateway decision.</p><div className="receipt-card"><div className="summary-lines"><p><span>Run ID</span><strong>{aiData.run_id || "—"}</strong></p><p><span>Allowed</span><strong>{summary.allow ?? 0}</strong></p><p><span>Awaiting owner approval</span><strong>{summary.ask ?? 0}</strong></p><p><span>Blocked</span><strong>{summary.block ?? 0}</strong></p></div></div>{orders.length > 0 && <div className="orders-list">{orders.map((order: any) => <article className="order-card" key={order.intent_id || order.reference}><div className="audit-main"><strong>{order.sku_id}</strong><Badge tone={order.decision === "allow" ? "green" : order.decision === "ask" ? "amber" : "red"}>{String(order.decision || "unknown").toUpperCase()}</Badge></div><p className="producer">{order.reason_code || order.intent_id || "Gateway decision returned"}</p>{order.order_id && <p className="producer">Marketplace order {order.order_id} · {String(order.order_status || "").replace("_", " ")}</p>}</article>)}</div>}<Button className="full-button" onClick={() => go("console")} icon="shield">Review Owner Console</Button><Button className="full-button" variant="ghost" onClick={() => go("home")}>Back to home</Button></main>;
   }
   const isBlock = aiData?.summary?.block > 0;
   
@@ -313,14 +313,47 @@ function GroupCreated({ go }: { go: (s: Screen) => void }) {
 function AI({ go }: { go: (s: Screen) => void }) {
   const [tab, setTab] = useState<"assistant" | "rules">("assistant");
   const [message, setMessage] = useState("");
-  const [showResult, setShowResult] = useState(true);
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatMessages, setChatMessages] = useState<any[]>([
+    { role: "assistant", text: "Tell me what you need and how many. I’ll check the current marketplace catalog and show the listed price." },
+  ]);
+  const sendMessage = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const text = message.trim();
+    if (!text || chatBusy) return;
+    setMessage("");
+    setChatMessages((items) => [...items, { role: "user", text }]);
+    setChatBusy(true);
+    try {
+      const response = await fetch(`${agentBase}/agent/v1/assistant/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || `Assistant returned HTTP ${response.status}`);
+      setChatMessages((items) => [...items, { role: "assistant", text: data.reply, options: data.options || [] }]);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Could not reach the assistant service.";
+      setChatMessages((items) => [...items, { role: "assistant", text: `${detail} Please try again in a moment.` }]);
+    } finally {
+      setChatBusy(false);
+    }
+  };
+  const formatPrice = (minor: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(minor / 100);
   return <main className="page ai-page"><AppHeader title="MandatePay AI" subtitle="Your intelligent buying assistant" onProfile={() => go("profile")} />
-    <section className="ai-status"><div className="ai-status-head"><span className="ai-orb"><Icon name="sparkles" /></span><div><Badge>ACTIVE</Badge><h2>Monitoring 2 buying rules</h2><p>MandatePay is checking live group buys for you.</p></div><span className="pulse" /></div><div className="rule-status-row"><div><span className="status-dot searching" /><p><strong>Rice</strong><small>Searching · Best match ₦45k/bag</small></p></div><span>₦100k max</span></div><div className="rule-status-row"><div><span className="status-dot waiting" /><p><strong>Cooking oil</strong><small>Waiting for group target</small></p></div><span>₦20k max</span></div></section>
+    <section className="ai-status"><div className="ai-status-head"><span className="ai-orb"><Icon name="sparkles" /></span><div><Badge>MARKETPLACE</Badge><h2>Find your next restock</h2><p>Ask for a product and quantity to see current catalog pricing.</p></div></div></section>
     <div className="segmented"><button type="button" className={tab === "assistant" ? "active" : ""} onClick={() => setTab("assistant")}><Icon name="sparkles" size={17} /> Assistant</button><button type="button" className={tab === "rules" ? "active" : ""} onClick={() => setTab("rules")}><Icon name="sliders" size={17} /> My buying rules</button></div>
     {tab === "assistant" ? <section className="chat-area">
-      <div className="ai-explainer"><div><Icon name="target" /></div><p><strong>Tell me the outcome you want.</strong><br />I’ll search products, compare group deals, check your limits and ask before I pay.</p></div>
-      <div className="chat-thread"><div className="user-message">I need 2 bags of rice under ₦100,000. Find a verified producer within 10km with delivery in 3 days.</div>{showResult && <><div className="ai-message"><span className="ai-mini"><Icon name="sparkles" size={15} /></span><p>I found <strong>3 matching options.</strong> This one best matches all your requirements and saves you ₦14,000.</p></div><article className="ai-result"><div className="match-score"><Icon name="check" size={13} /> BEST MATCH · 98%</div><img src={riceImage} alt="Premium long grain rice" /><div className="ai-result-body"><h3>Premium Long Grain Rice</h3><p className="producer">GreenFields Farms <span className="verified"><Icon name="check" size={9} /></span></p><div className="ai-result-price"><strong>₦45,000 <small>/ bag</small></strong><Badge>Save ₦14,000</Badge></div><div className="criteria-grid"><span><Icon name="pin" size={15} /><strong>7km</strong><small>distance</small></span><span><Icon name="truck" size={15} /><strong>2–3 days</strong><small>delivery</small></span><span><Icon name="star" size={15} /><strong>4.8</strong><small>rating</small></span></div><div className="rule-check"><Icon name="shield" size={17} /><span>Matches all 6 of your buying conditions</span></div><Button className="full-button" onClick={() => go("ai-approval")} icon="arrow">Use this option</Button></div></article></>}</div>
-      <form className="chat-input" onSubmit={(e) => { e.preventDefault(); if (message.trim()) { setShowResult(true); setMessage(""); } }}><textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What would you like MandatePay to buy?" /><button type="submit" aria-label="Send request"><Icon name="send" size={19} /></button><small>MandatePay always follows your approval and payment limits.</small></form>
+      <div className="ai-explainer"><div><Icon name="target" /></div><p><strong>What are you looking for?</strong><br />Recommendations use the live marketplace catalog. Payments are still checked against the signed mandate.</p></div>
+      <div className="chat-thread" aria-live="polite">
+        {chatMessages.map((entry, index) => <div key={`${entry.role}-${index}`}>
+          {entry.role === "user" ? <div className="user-message">{entry.text}</div> : <div className="ai-message"><span className="ai-mini"><Icon name="sparkles" size={15} /></span><p>{entry.text}</p></div>}
+          {entry.options?.map((option: any) => <article className="ai-result catalog-result" key={`${option.sku_id}-${index}`}><div className="ai-result-body"><div className="match-score"><Icon name="check" size={13} /> MARKETPLACE CATALOG</div><h3>{option.name}</h3><p>{option.qty} × {formatPrice(option.unit_price_minor)} per unit</p><div className="ai-result-price"><strong>{formatPrice(option.total_minor)}</strong><Badge>CATALOG PRICE</Badge></div><p className="producer">Final payment decision follows your active mandate.</p></div></article>)}
+        </div>)}
+        {chatBusy && <div className="ai-message"><span className="ai-mini"><Icon name="sparkles" size={15} /></span><p>Checking the marketplace…</p></div>}
+      </div>
+      <form className="chat-input" onSubmit={sendMessage}><textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Try: I need 2 bags of rice" aria-label="Message the shopping assistant" disabled={chatBusy} /><button type="submit" aria-label="Send message" disabled={chatBusy || !message.trim()}><Icon name="send" size={19} /></button><small>Try a product name and quantity, such as “2 bags of rice”.</small></form>
     </section> : <BuyingRules go={go} />}
   </main>;
 }
@@ -362,7 +395,7 @@ function AIApproval({ go, setAiData }: { go: (s: Screen) => void, setAiData?: an
   };
 
   return <main className="page narrow-page"><AppHeader back onBack={() => go("ai")} title="Purchase approval" /><section className="approval-hero"><span className="ai-orb large"><Icon name="sparkles" size={28} /></span><Badge tone="amber">ACTION REQUIRED</Badge><h1>MandatePay found a match</h1><p>Choose the agent mode, then submit its restock plan to the gateway.</p></section>
-    <section className="planner-mode"><span>Agent mode</span><div><button type="button" className={mode === "scripted" ? "active" : ""} onClick={() => setMode("scripted")}>Scripted</button><button type="button" className={mode === "llm" ? "active" : ""} onClick={() => setMode("llm")}>Groq LLM</button></div><small>{mode === "scripted" ? "Deterministic demo plan · no LLM key required" : "Requires GROQ_API_KEY on the Render agent service"}</small></section>
+    <section className="planner-mode"><span>Agent mode</span><div><button type="button" className={mode === "scripted" ? "active" : ""} onClick={() => setMode("scripted")}>Suggested plan</button><button type="button" className={mode === "llm" ? "active" : ""} onClick={() => setMode("llm")}>LLM</button></div><small>{mode === "scripted" ? "A consistent plan for the demo walkthrough" : "Build a plan from the marketplace catalog"}</small></section>
     <section className="rule-match"><div className="rule-match-head"><span>Your buying rule</span><Badge><Icon name="check" size={12} /> 6/6 MATCH</Badge></div><div className="match-list">{["2 bags of rice", "Under ₦100,000", "Verified producer", "Within 10km", "Rating above 4.5", "Delivery within 3 days"].map((x) => <p key={x}><Icon name="check" size={14} />{x}</p>)}</div></section>
     <section className="matched-product"><div className="summary-product"><img src={riceImage} alt="Rice" /><div><Badge>BEST MATCH</Badge><h3>Premium Long Grain Rice</h3><p>GreenFields Farms ✓ · 7km</p></div></div><div className="purchase-math"><p><span>₦45,000 × 2 bags</span><strong>₦90,000</strong></p><p><span>Potential savings</span><strong className="green-text">₦14,000</strong></p></div></section>
     <div className="approval-note"><Icon name="shield" /><p>MandatePay will initiate payment through your approved Wema method only after you approve.</p></div>

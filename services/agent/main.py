@@ -14,6 +14,8 @@ Provides Section 4.9 compliant endpoints for:
 """
 
 import logging
+import json
+import re
 import uvicorn
 from fastapi import FastAPI, HTTPException, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +25,7 @@ from forecast import generate_full_forecast_report
 from agent import RestockAgent
 from attacks.scenarios import ATTACK_SCENARIOS
 from attacks.runner import AttackRunner
+from config import GROQ_API_KEY, GROQ_MODEL
 
 app = FastAPI(
     title="TrustRail Restock Agent Service",
@@ -65,6 +68,67 @@ def get_forecast(sku_id: Optional[str] = Query(None)) -> List[Dict[str, Any]]:
 def get_recommendations() -> List[Dict[str, Any]]:
     """Returns restock recommendations for the retailer."""
     return restock_agent.get_recommendations()
+
+@app.post("/agent/v1/assistant/chat")
+def assistant_chat(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Answer a shopping query using the live Market catalog and Groq when configured."""
+    message = str(payload.get("message", "")).strip()
+    if not message or len(message) > 2000:
+        raise HTTPException(status_code=422, detail="Enter a message between 1 and 2000 characters.")
+    try:
+        products = restock_agent.market.get_products()
+    except Exception as exc:
+        logger.exception("Could not load marketplace catalog for assistant")
+        raise HTTPException(status_code=502, detail="The marketplace catalog is unavailable right now.") from exc
+    if not products:
+        raise HTTPException(status_code=503, detail="The marketplace has no products to recommend right now.")
+
+    reply = ""
+    selected: List[Dict[str, Any]] = []
+    if GROQ_API_KEY:
+        try:
+            from groq import Groq
+            response = Groq(api_key=GROQ_API_KEY).chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": "You are MandatePay's shopping assistant. Recommend only SKU ids present in the provided catalog. Do not invent stock, suppliers, ratings, distance, delivery promises, or payment outcomes. Return JSON with a concise helpful 'reply' and an 'items' array of {sku_id, qty}. If no catalog product fits, return an empty items array and ask a brief clarifying question."},
+                    {"role": "user", "content": json.dumps({"request": message, "catalog": products})},
+                ],
+                response_format={"type": "json_object"},
+            )
+            result = json.loads(response.choices[0].message.content or "{}")
+            reply = str(result.get("reply", "")).strip()
+            selected = result.get("items", []) if isinstance(result.get("items", []), list) else []
+        except Exception:
+            logger.exception("Groq assistant request failed; using catalog matching")
+
+    valid_products = {p["sku_id"]: p for p in products if p.get("sku_id") and isinstance(p.get("price_minor"), int)}
+    normalized = []
+    for item in selected:
+        if not isinstance(item, dict) or item.get("sku_id") not in valid_products:
+            continue
+        try:
+            qty = max(1, min(100, int(item.get("qty", 1))))
+        except (TypeError, ValueError):
+            continue
+        normalized.append({"sku_id": item["sku_id"], "qty": qty})
+
+    if not normalized:
+        tokens = [t for t in re.findall(r"[a-z0-9]+", message.lower()) if len(t) > 2]
+        ranked = sorted(products, key=lambda p: sum(token in f"{p.get('name', '')} {p.get('sku_id', '')}".lower() for token in tokens), reverse=True)
+        score = sum(token in f"{ranked[0].get('name', '')} {ranked[0].get('sku_id', '')}".lower() for token in tokens) if ranked and tokens else 0
+        if score:
+            quantity_match = re.search(r"\b(\d{1,3})\b", message)
+            normalized = [{"sku_id": ranked[0]["sku_id"], "qty": int(quantity_match.group(1)) if quantity_match else 1}]
+        if not reply:
+            reply = "I can help find items in the marketplace catalog. Tell me what you need and how many." if not normalized else "I found a catalog match. The card below uses the current marketplace price."
+
+    options = [{"sku_id": item["sku_id"], "name": valid_products[item["sku_id"]]["name"], "qty": item["qty"],
+                "unit_price_minor": valid_products[item["sku_id"]]["price_minor"],
+                "total_minor": valid_products[item["sku_id"]]["price_minor"] * item["qty"]} for item in normalized]
+    if GROQ_API_KEY and not reply:
+        reply = "Here are the closest matches from the current marketplace catalog."
+    return {"reply": reply, "options": options, "mode": "llm" if GROQ_API_KEY else "catalog"}
 
 @app.post("/agent/v1/restock/runs")
 def trigger_restock_run(payload: Dict[str, Any] = Body(default={"mode": "scripted"})) -> Dict[str, Any]:
