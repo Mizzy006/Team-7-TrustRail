@@ -641,7 +641,7 @@ function Console({ go }: { go: (s: Screen) => void }) {
         <label>Weekly spend cap ₦<input type="number" min="1" value={weeklyCap} onChange={e => setWeeklyCap(e.target.value)} /></label>
         <label className="payees-input">Allowed payee IDs (comma-separated)<input value={allowedPayees} onChange={e => setAllowedPayees(e.target.value)} /></label>
       </div><Button disabled={busyId === "mandate" || !signingKeyId || !autoLimit || !hardLimit || !dailyCap || !weeklyCap || !allowedPayees.trim()} onClick={() => void createDemoMandate()}>{busyId === "mandate" ? "Signing mandate…" : mandate ? "Sign & activate updated rules" : "Sign & activate mandate"}</Button></div>}
-      {connected && <div className="mandate-setup-panel"><div><strong>Fresh demo slate</strong><p>Clear gateway ledger/audit/approvals, agent attack/run history, and marketplace demo orders.</p></div><Button variant="secondary" disabled={busyId === "reset"} onClick={() => void resetDemo()}>{busyId === "reset" ? "Resetting…" : "Reset demo data"}</Button></div>}
+      {connected && <div className="mandate-setup-panel"><div><strong>Fresh demo slate</strong><p>Clear gateway ledger/audit/approvals, agent attack/run history, and marketplace demo orders.</p></div><Button variant="secondary" disabled={busyId === "reset"} onClick={() => void resetDemo()}>{busyId === "reset" ? "Resetting…" : "Reset demo"}</Button></div>}
     </section>
     <section className="section"><SectionTitle title="Pending ASK approvals" />
       <div className="audit-list">{approvals.length ? approvals.map((approval: any) => <article className="approval-live" key={approval.approval_id}>

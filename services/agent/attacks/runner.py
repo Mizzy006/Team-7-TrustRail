@@ -138,6 +138,7 @@ class AttackRunner:
         }
 
     def run_all_scenarios(self) -> List[Dict[str, Any]]:
-        # Exercise the rolling cap before other scenarios can trigger quarantine.
-        scenario_ids = ["S4", "S1", "S2", "S3", "S5", "S6"]
+        # Keep the approval bypass visible before S4 consumes the daily cap.
+        # Then exercise cap exhaustion before block scenarios trigger quarantine.
+        scenario_ids = ["S5", "S4", "S1", "S2", "S3", "S6"]
         return [self.run_scenario(scenario_id) for scenario_id in scenario_ids]
