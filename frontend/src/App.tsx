@@ -262,7 +262,7 @@ function Success({ go, ai = false, aiData = null }: { go: (s: Screen) => void; a
   if (ai && aiData) {
     const summary = aiData.summary || aiData.decisions_summary || {};
     const orders = aiData.orders || [];
-    return <main className="page narrow-page state-page success-page"><div className="success-check"><Icon name="check" size={38} /></div><Badge>RESTOCK RUN COMPLETE · {String(aiData.mode || "scripted").toUpperCase()}</Badge><h1>Gateway decisions received</h1><p>The agent submitted its restock plan. Each payment follows the active mandate and gateway decision.</p><div className="receipt-card"><div className="summary-lines"><p><span>Run ID</span><strong>{aiData.run_id || "—"}</strong></p><p><span>Allowed</span><strong>{summary.allow ?? 0}</strong></p><p><span>Awaiting owner approval</span><strong>{summary.ask ?? 0}</strong></p><p><span>Blocked</span><strong>{summary.block ?? 0}</strong></p></div></div>{orders.length > 0 && <div className="orders-list">{orders.map((order: any) => <article className="order-card" key={order.intent_id || order.reference}><div className="audit-main"><strong>{order.sku_id}</strong><Badge tone={order.decision === "allow" ? "green" : order.decision === "ask" ? "amber" : "red"}>{String(order.decision || "unknown").toUpperCase()}</Badge></div><p className="producer">{order.reason_code || order.intent_id || "Gateway decision returned"}</p></article>)}</div>}<Button className="full-button" onClick={() => go("console")} icon="shield">Review Owner Console</Button><Button className="full-button" variant="ghost" onClick={() => go("home")}>Back to home</Button></main>;
+    return <main className="page narrow-page state-page success-page"><div className="success-check"><Icon name="check" size={38} /></div><Badge>RESTOCK RUN COMPLETE · {String(aiData.mode || "scripted").toUpperCase()}</Badge><h1>Gateway decisions received</h1><p>The agent submitted its restock plan. Each payment follows the active mandate and gateway decision.</p><div className="receipt-card"><div className="summary-lines"><p><span>Run ID</span><strong>{aiData.run_id || "—"}</strong></p><p><span>Allowed</span><strong>{summary.allow ?? 0}</strong></p><p><span>Awaiting owner approval</span><strong>{summary.ask ?? 0}</strong></p><p><span>Blocked</span><strong>{summary.block ?? 0}</strong></p></div></div>{orders.length > 0 && <div className="orders-list">{orders.map((order: any) => <article className="order-card" key={order.intent_id || order.reference}><div className="audit-main"><strong>{order.sku_id}</strong><Badge tone={order.decision === "allow" ? "green" : order.decision === "ask" ? "amber" : "red"}>{String(order.decision || "unknown").toUpperCase()}</Badge></div><p className="producer">{order.reason_code || order.intent_id || "Gateway decision returned"}</p>{order.order_id && <p className="producer">Marketplace order {order.order_id} · {String(order.order_status || "").replace("_", " ")}</p>}</article>)}</div>}<Button className="full-button" onClick={() => go("console")} icon="shield">Review Owner Console</Button><Button className="full-button" variant="ghost" onClick={() => go("home")}>Back to home</Button></main>;
   }
   const isBlock = aiData?.summary?.block > 0;
   
@@ -321,15 +321,16 @@ function AI({ go }: { go: (s: Screen) => void }) {
       <div className="ai-explainer"><div><Icon name="target" /></div><p><strong>Tell me the outcome you want.</strong><br />I’ll search products, compare group deals, check your limits and ask before I pay.</p></div>
       <div className="chat-thread"><div className="user-message">I need 2 bags of rice under ₦100,000. Find a verified producer within 10km with delivery in 3 days.</div>{showResult && <><div className="ai-message"><span className="ai-mini"><Icon name="sparkles" size={15} /></span><p>I found <strong>3 matching options.</strong> This one best matches all your requirements and saves you ₦14,000.</p></div><article className="ai-result"><div className="match-score"><Icon name="check" size={13} /> BEST MATCH · 98%</div><img src={riceImage} alt="Premium long grain rice" /><div className="ai-result-body"><h3>Premium Long Grain Rice</h3><p className="producer">GreenFields Farms <span className="verified"><Icon name="check" size={9} /></span></p><div className="ai-result-price"><strong>₦45,000 <small>/ bag</small></strong><Badge>Save ₦14,000</Badge></div><div className="criteria-grid"><span><Icon name="pin" size={15} /><strong>7km</strong><small>distance</small></span><span><Icon name="truck" size={15} /><strong>2–3 days</strong><small>delivery</small></span><span><Icon name="star" size={15} /><strong>4.8</strong><small>rating</small></span></div><div className="rule-check"><Icon name="shield" size={17} /><span>Matches all 6 of your buying conditions</span></div><Button className="full-button" onClick={() => go("ai-approval")} icon="arrow">Use this option</Button></div></article></>}</div>
       <form className="chat-input" onSubmit={(e) => { e.preventDefault(); if (message.trim()) { setShowResult(true); setMessage(""); } }}><textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What would you like MandatePay to buy?" /><button type="submit" aria-label="Send request"><Icon name="send" size={19} /></button><small>MandatePay always follows your approval and payment limits.</small></form>
-    </section> : <BuyingRules />}
+    </section> : <BuyingRules go={go} />}
   </main>;
 }
 
-function BuyingRules() {
-  const [enabled, setEnabled] = useState(true);
-  return <section className="rules-page"><div className="rules-intro"><h2>My Buying Rules</h2><p>Set the conditions MandatePay must follow when finding and completing purchases.</p></div><div className="existing-rule"><div className="existing-rule-head"><div><span className="round-icon"><Icon name="bag" /></span><div><h3>Premium Rice</h3><p>2 bags · Within 10km</p></div></div><Badge>MONITORING</Badge></div><div className="rule-metrics"><p><span>Maximum price</span><strong>₦50,000 / bag</strong></p><p><span>Maximum total</span><strong>₦100,000</strong></p><p><span>Producer</span><strong>Verified only</strong></p><p><span>Minimum rating</span><strong>4.5 stars</strong></p><p><span>Delivery</span><strong>Within 3 days</strong></p></div></div>
-    <div className="permission-card"><div className="permission-head"><span className="round-icon green"><Icon name="shield" /></span><div><h3>Payment permission</h3><p>Allow MandatePay AI to complete matching purchases</p></div><button type="button" className={`toggle ${enabled ? "on" : ""}`} onClick={() => setEnabled(!enabled)}><span /></button></div>{enabled && <div className="permission-details"><p><span>Maximum transaction</span><strong>₦100,000</strong></p><p><span>Payment method</span><strong>Wema ··· 2048</strong></p><p><span>Require confirmation</span><strong>Above ₦100,000</strong></p></div>}<div className="permission-note"><Icon name="shield" size={16} /> You can pause or revoke permission anytime.</div></div>
-    <Button className="full-button" icon="plus">Add new buying rule</Button></section>;
+function BuyingRules({ go }: { go: (s: Screen) => void }) {
+  return <section className="rules-page">
+    <div className="rules-intro"><h2>Mandate rules</h2><p>Payment limits and approved suppliers are enforced by your signed gateway mandate. Edit those rules in the Owner Console to change live payment behavior.</p></div>
+    <div className="permission-card"><div className="permission-head"><span className="round-icon green"><Icon name="shield" /></span><div><h3>Gateway-enforced rules</h3><p>Signed by the owner and checked on every payment request</p></div><Badge>LIVE</Badge></div><div className="permission-note"><Icon name="shield" size={16} /> Changing these rules creates a new signed mandate and preserves the previous one in the audit history.</div></div>
+    <Button className="full-button" onClick={() => go("console")} icon="shield">Manage signed mandate rules</Button>
+  </section>;
 }
 
 function AIApproval({ go, setAiData }: { go: (s: Screen) => void, setAiData?: any }) {
@@ -464,6 +465,11 @@ function Console({ go }: { go: (s: Screen) => void }) {
   const [keyError, setKeyError] = useState("");
   const [killSwitch, setKillSwitch] = useState<any>(null);
   const [busyId, setBusyId] = useState("");
+  const [autoLimit, setAutoLimit] = useState("50000");
+  const [hardLimit, setHardLimit] = useState("150000");
+  const [dailyCap, setDailyCap] = useState("200000");
+  const [weeklyCap, setWeeklyCap] = useState("600000");
+  const [allowedPayees, setAllowedPayees] = useState("pay_primefoods, pay_sunbev, pay_market_escrow");
   const request = async (path: string, accessToken: string, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${accessToken}`);
@@ -486,7 +492,16 @@ function Console({ go }: { go: (s: Screen) => void }) {
       ]);
       setPrincipalId(me.principal_id);
       setWallet(accounts.items?.find((a: any) => a.type === "wallet" && a.owner_id === me.principal_id) || null);
-      setMandate(mandates.items?.find((m: any) => m.status === "active") || null);
+      const activeMandate = mandates.items?.find((m: any) => m.status === "active") || null;
+      setMandate(activeMandate);
+      const activeBody = activeMandate?.mandate || {};
+      if (activeBody.limits?.per_txn) {
+        setAutoLimit(String(activeBody.limits.per_txn.auto_max_minor / 100));
+        setHardLimit(String(activeBody.limits.per_txn.hard_max_minor / 100));
+        setDailyCap(String((activeBody.limits.windows || []).find((w: any) => w.name === "daily")?.cap_minor / 100 || ""));
+        setWeeklyCap(String((activeBody.limits.windows || []).find((w: any) => w.name === "weekly")?.cap_minor / 100 || ""));
+        setAllowedPayees((activeBody.payees || []).join(", "));
+      }
       setApprovals(approvalData.items || []); setIntents(intentData.items || []); setAudit(auditData.items || []);
       setKillSwitch(kill); setConnected(true); sessionStorage.setItem("trustrail_owner_token", accessToken);
       try {
@@ -539,18 +554,18 @@ function Console({ go }: { go: (s: Screen) => void }) {
       const stamp = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
       const body = {
         schema_version: "mandatepay/mandate/v1",
-        mandate_id: "mdt_01DEMO0000000000000001",
+        mandate_id: `mdt_${crypto.randomUUID().replace(/-/g, "")}`,
         principal_id: principalId,
         agent_id: "agt_restock",
         key_id: signingKeyId,
-        supersedes: null,
+        supersedes: mandate?.mandate?.mandate_id || null,
         issued_at: stamp(now),
         valid_from: stamp(now),
         valid_until: stamp(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)),
         currency: "NGN",
-        purpose: "Restock shop inventory from approved suppliers and pools (cap ₦200,000/day)",
-        payees: ["pay_primefoods", "pay_sunbev", "pay_market_escrow"],
-        limits: { per_txn: { auto_max_minor: 5000000, hard_max_minor: 15000000 }, windows: [{ name: "daily", seconds: 86400, cap_minor: 20000000 }, { name: "weekly", seconds: 604800, cap_minor: 60000000 }] },
+        purpose: `Restock inventory under owner-set limits (daily cap ₦${dailyCap})`,
+        payees: [...new Set(allowedPayees.split(",").map((p: string) => p.trim()).filter(Boolean))],
+        limits: { per_txn: { auto_max_minor: Math.round(Number(autoLimit) * 100), hard_max_minor: Math.round(Number(hardLimit) * 100) }, windows: [{ name: "daily", seconds: 86400, cap_minor: Math.round(Number(dailyCap) * 100) }, { name: "weekly", seconds: 604800, cap_minor: Math.round(Number(weeklyCap) * 100) }] },
         ask_rules: { approval_ttl_seconds: 900, anomaly: { enabled: true, history_count: 5, percent_of_average: 300 } },
         quarantine: { blocked_attempts: 3, window_seconds: 600 },
       };
@@ -558,6 +573,18 @@ function Console({ go }: { go: (s: Screen) => void }) {
       await request("/v1/mandates", token, { method: "POST", body: JSON.stringify({ mandate: body, signature: { alg: "Ed25519", key_id: signingKeyId, value: signature } }) });
       await loadConsole(token);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not create the signed demo mandate"); }
+    finally { setBusyId(""); }
+  };
+  const resetDemo = async () => {
+    if (!window.confirm("Restore the gateway to its seeded demo state and clear agent runs, marketplace orders, approvals, audit history, and payment activity?")) return;
+    setBusyId("reset"); setError("");
+    try {
+      await request("/demo/v1/reset", token, { method: "POST" });
+      const agentUrl = (import.meta as any).env?.VITE_AGENT_URL || "https://agent-2v5n.onrender.com";
+      const resetAgent = await fetch(`${agentUrl.replace(/\/$/, "")}/demo/v1/reset`, { method: "POST" });
+      if (!resetAgent.ok) throw new Error("Gateway was reset, but agent/marketplace reset failed. Retry after checking the agent service.");
+      await loadConsole(token);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not reset demo data"); }
     finally { setBusyId(""); }
   };
   const money = (minor?: number, currency = "NGN") => typeof minor === "number" ? new Intl.NumberFormat("en-NG", { style: "currency", currency, maximumFractionDigits: 0 }).format(minor / 100) : "—";
@@ -607,7 +634,14 @@ function Console({ go }: { go: (s: Screen) => void }) {
         })}</div>
         <div className="mandate-payees-list"><h3>Approved Payees</h3>{(currentMandate?.payees || []).map((entry: any) => <div className="payee-row" key={typeof entry === "string" ? entry : entry.payee_id}><span className="verified"><Icon name="check" size={10} /></span><strong>{typeof entry === "string" ? entry : entry.name || entry.payee_id}</strong><small>{typeof entry === "string" ? entry : entry.payee_id}</small></div>)}{mandate && !currentMandate?.payees?.length && <p className="empty-console">No approved payees are listed on the active mandate.</p>}</div>
       </div>
-      {connected && !mandate && <div className="mandate-setup-panel"><div><strong>No active mandate on this gateway</strong><p>Create and sign the project’s default seven-day demo mandate to enable scripted restock decisions.</p></div><Button disabled={busyId === "mandate" || !signingKeyId} onClick={() => void createDemoMandate()}>{busyId === "mandate" ? "Signing mandate…" : "Sign & activate demo mandate"}</Button></div>}
+      {connected && <div className="mandate-setup-panel mandate-editor"><div><strong>{mandate ? "Edit signed mandate rules" : "Set your first mandate rules"}</strong><p>Amounts are in naira. Saving signs a new immutable mandate and supersedes the current one.</p></div><div className="mandate-rule-form">
+        <label>Auto-approve up to ₦<input type="number" min="1" value={autoLimit} onChange={e => setAutoLimit(e.target.value)} /></label>
+        <label>Hard transaction maximum ₦<input type="number" min="1" value={hardLimit} onChange={e => setHardLimit(e.target.value)} /></label>
+        <label>Daily spend cap ₦<input type="number" min="1" value={dailyCap} onChange={e => setDailyCap(e.target.value)} /></label>
+        <label>Weekly spend cap ₦<input type="number" min="1" value={weeklyCap} onChange={e => setWeeklyCap(e.target.value)} /></label>
+        <label className="payees-input">Allowed payee IDs (comma-separated)<input value={allowedPayees} onChange={e => setAllowedPayees(e.target.value)} /></label>
+      </div><Button disabled={busyId === "mandate" || !signingKeyId || !autoLimit || !hardLimit || !dailyCap || !weeklyCap || !allowedPayees.trim()} onClick={() => void createDemoMandate()}>{busyId === "mandate" ? "Signing mandate…" : mandate ? "Sign & activate updated rules" : "Sign & activate mandate"}</Button></div>}
+      {connected && <div className="mandate-setup-panel"><div><strong>Fresh demo slate</strong><p>Clear gateway ledger/audit/approvals, agent attack/run history, and marketplace demo orders.</p></div><Button variant="secondary" disabled={busyId === "reset"} onClick={() => void resetDemo()}>{busyId === "reset" ? "Resetting…" : "Reset demo data"}</Button></div>}
     </section>
     <section className="section"><SectionTitle title="Pending ASK approvals" />
       <div className="audit-list">{approvals.length ? approvals.map((approval: any) => <article className="approval-live" key={approval.approval_id}>

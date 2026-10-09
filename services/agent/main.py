@@ -138,10 +138,11 @@ def get_attack_summary() -> Dict[str, Any]:
 
 @app.post("/demo/v1/reset")
 def reset_demo() -> Dict[str, Any]:
-    """Resets run and attack history."""
+    """Resets agent history and demo marketplace orders."""
     runs_store.clear()
     attack_history.clear()
-    return {"status": "reset_complete", "runs_cleared": True, "attacks_cleared": True}
+    restock_agent.market.reset_demo_orders()
+    return {"status": "reset_complete", "runs_cleared": True, "attacks_cleared": True, "orders_cleared": True}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8003, reload=True)

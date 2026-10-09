@@ -65,202 +65,74 @@ class RestockAgent:
         return recommendations
 
     def run_restock(self, mode: str = "scripted") -> Dict[str, Any]:
-        """Executes a restock run and records step trace."""
-        trace = []
-        mandate_id = "mdt_01DEMO0000000000000001"
-        
-        trace.append({
-            "step": 1,
-            "action": "get_mandate",
-            "details": f"Reading active mandate {mandate_id} (Auto max: ₦50,000, Hard max: ₦150,000)"
-        })
-
-        recommendations = self.get_recommendations()
-        reorder_items = [r for r in recommendations if r["urgency"] in ["now", "soon"]]
-
-        trace.append({
-            "step": 2,
-            "action": "get_inventory",
-            "details": f"Evaluated 6 SKUs. Identified {len(reorder_items)} items requiring replenishment."
-        })
-
-        orders_placed = []
-        decisions_summary = {"allow": 0, "ask": 0, "block": 0}
-
-        # Golden path sample items matching section 4.10: 2 ALLOW, 1 ASK
-        sample_items = [
-            {"sku_id": "sku_noodles_carton", "qty": 10, "payee_id": "pay_primefoods", "unit_price": 300000},    # ₦30,000 -> ALLOW
-            {"sku_id": "sku_rice_50kg", "qty": 1, "payee_id": "pay_primefoods", "unit_price": 6500000},         # ₦65,000 -> ASK
-            {"sku_id": "sku_cooking_oil_5l", "qty": 2, "payee_id": "pay_market_escrow", "unit_price": 1400000}  # ₦28,000 -> ALLOW
-        ]
-
+        """Create marketplace orders, then ask the live gateway to decide each payment."""
         if mode == "llm":
-            return self._run_llm_mode()
+            return self._run_llm_mode() if GROQ_API_KEY else self.run_restock(mode="scripted")
+        items = [
+            {"sku_id": "sku_noodles_carton", "qty": 10},
+            {"sku_id": "sku_rice_50kg", "qty": 1},
+            {"sku_id": "sku_cooking_oil_5l", "qty": 2},
+        ]
+        return self._execute_order_plan(items, mode)
 
-        step_counter = 3
-        for item in sample_items:
-            sku = item["sku_id"]
-            qty = item["qty"]
-            total_minor = item["unit_price"] * qty
-            payee = item["payee_id"]
-            ref = f"ord_demo_{sku}"
-
-            # Step A: Place order draft with Market
-            trace.append({
-                "step": step_counter,
-                "action": "create_order",
-                "details": f"Creating order for {qty} x {sku} (Total: ₦{total_minor/100:,.2f})"
-            })
-            step_counter += 1
-
-            # Step B: Submit payment intent to MandatePay Gateway
+    def _execute_order_plan(self, items: List[Dict[str, Any]], mode: str) -> Dict[str, Any]:
+        mandate_response = self.gateway.get_agent_mandate()
+        mandate = mandate_response.get("mandate", {})
+        mandate_body = mandate.get("mandate", mandate)
+        mandate_id = mandate_body.get("mandate_id")
+        if not mandate_id:
+            raise RuntimeError("Gateway has no active mandate for the restock agent")
+        trace = [{"step": 1, "action": "get_mandate", "details": f"Loaded active signed mandate {mandate_id}"}]
+        trace.append({"step": 2, "action": "get_inventory", "details": "Loaded live marketplace inventory and catalog pricing"})
+        orders_placed: List[Dict[str, Any]] = []
+        summary = {"allow": 0, "ask": 0, "block": 0}
+        for index, item in enumerate(items, start=1):
+            sku, qty = item["sku_id"], int(item["qty"])
+            created = self.market.create_order(sku, qty)
+            payment = created.get("payment_request") or {}
+            amount = payment.get("amount") or {}
+            amount_minor = int(amount.get("amount_minor", 0))
+            if not created.get("order_id") or amount_minor <= 0:
+                raise RuntimeError(f"Marketplace returned an invalid order for {sku}")
+            trace.append({"step": len(trace) + 1, "action": "create_order", "details": f"Marketplace created {created['order_id']} for {qty} x {sku} ({amount_minor} minor units)"})
             decision_res = self.gateway.request_payment(
                 mandate_id=mandate_id,
-                payee_id=payee,
-                amount_minor=total_minor,
-                reference=ref,
-                description=f"Restock replenishment for {sku}"
+                payee_id=payment["payee_id"],
+                amount_minor=amount_minor,
+                currency=amount.get("currency", "NGN"),
+                reference=payment.get("reference", created["order_id"]),
+                description=payment.get("description", f"Restock order {created['order_id']}"),
             )
-
-            dec = decision_res.get("decision", "allow")
-            reason = decision_res.get("reason_code", "AUTO_APPROVED")
-            decisions_summary[dec] = decisions_summary.get(dec, 0) + 1
-
-            trace.append({
-                "step": step_counter,
-                "action": "request_payment",
-                "details": f"MandatePay Gateway returned decision: {dec.upper()} (Reason: {reason}) for payment of ₦{total_minor/100:,.2f}"
-            })
-            step_counter += 1
-
-            orders_placed.append({
-                "sku_id": sku,
-                "qty": qty,
-                "amount_minor": total_minor,
-                "intent_id": decision_res.get("intent_id", f"pi_{ref}"),
-                "decision": dec,
-                "reason_code": reason
-            })
-
-        return {
-            "run_id": "run_demo_001",
-            "mode": mode,
-            "status": "completed",
-            "total_orders": len(orders_placed),
-            "decisions_summary": decisions_summary,
-            "orders": orders_placed,
-            "trace": trace
-        }
+            decision = decision_res.get("decision")
+            if decision not in summary:
+                raise RuntimeError(f"Gateway returned an invalid payment decision for {created['order_id']}")
+            reason = decision_res.get("reason_code", "")
+            summary[decision] += 1
+            status = {"allow": "paid", "ask": "awaiting_approval", "block": "blocked"}[decision]
+            self.market.update_order_payment(created["order_id"], decision_res.get("intent_id"))
+            trace.append({"step": len(trace) + 1, "action": "request_payment", "details": f"Gateway returned {decision.upper()} ({reason}) for order {created['order_id']}"})
+            orders_placed.append({"order_id": created["order_id"], "order_status": status, "sku_id": sku, "qty": qty, "amount_minor": amount_minor,
+                                  "intent_id": decision_res.get("intent_id"), "decision": decision, "reason_code": reason})
+        return {"run_id": f"run_{__import__('uuid').uuid4().hex[:12]}", "mode": mode, "status": "completed", "total_orders": len(orders_placed),
+                "decisions_summary": summary, "orders": orders_placed, "trace": trace}
 
     def _run_llm_mode(self) -> Dict[str, Any]:
-        """Runs the LLM mode using Groq."""
-        if not GROQ_API_KEY:
-            return self.run_restock(mode="scripted") # Fallback to scripted
-        
+        """Use Groq to select the demo restock SKUs, while Market supplies final prices."""
         try:
             from groq import Groq
             client = Groq(api_key=GROQ_API_KEY)
-        except ImportError:
-            return self.run_restock(mode="scripted")
-
-        trace = []
-        mandate_id = "mdt_01DEMO0000000000000001"
-        
-        trace.append({
-            "step": 1,
-            "action": "get_mandate",
-            "details": f"Reading active mandate {mandate_id} via LLM agent"
-        })
-
-        recommendations = self.get_recommendations()
-        
-        trace.append({
-            "step": 2,
-            "action": "llm_analysis",
-            "details": "LLM agent analyzing recommendations and market catalog..."
-        })
-
-        prompt = f"""
-        You are a restock AI agent. Evaluate these recommendations: {json.dumps(recommendations)}
-        Select items with urgency "now" or "soon".
-        Return a JSON object containing an 'orders' array. Each order should have 'sku_id', 'qty', 'payee_id', and 'unit_price' (minor).
-        For this demo, just pick:
-        - sku_noodles_carton: qty 10, pay_primefoods, 300000
-        - sku_rice_50kg: qty 1, pay_primefoods, 6500000
-        - sku_cooking_oil_5l: qty 2, pay_market_escrow, 1400000
-        """
-
-        response = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model=GROQ_MODEL,
-            response_format={"type": "json_object"}
-        )
-        
-        try:
-            content = json.loads(response.choices[0].message.content)
-            sample_items = content.get("orders", [])
+            catalog = self.market.get_products()
+            prompt = "Choose a sensible restock plan using only these products. Return JSON with an orders array of {sku_id, qty}. " + json.dumps(catalog)
+            response = client.chat.completions.create(messages=[{"role": "user", "content": prompt}], model=GROQ_MODEL, response_format={"type": "json_object"})
+            choices = json.loads(response.choices[0].message.content).get("orders", [])
+            allowed = {p["sku_id"] for p in catalog}
+            items = [{"sku_id": x["sku_id"], "qty": int(x["qty"])} for x in choices if x.get("sku_id") in allowed and 1 <= int(x.get("qty", 0)) <= 100]
+            if not items:
+                raise ValueError("LLM did not return any valid catalog orders")
+            result = self._execute_order_plan(items, "llm")
+            result["trace"].insert(2, {"step": 3, "action": "llm_analysis", "details": f"Groq selected {len(items)} marketplace catalog orders"})
+            for step, row in enumerate(result["trace"], 1): row["step"] = step
+            return result
         except Exception:
-            sample_items = []
-
-        trace.append({
-            "step": 3,
-            "action": "llm_decision",
-            "details": f"LLM decided to place {len(sample_items)} orders."
-        })
-
-        orders_placed = []
-        decisions_summary = {"allow": 0, "ask": 0, "block": 0}
-        step_counter = 4
-
-        for item in sample_items:
-            sku = item["sku_id"]
-            qty = item["qty"]
-            total_minor = item["unit_price"] * qty
-            payee = item["payee_id"]
-            ref = f"ord_llm_{sku}"
-
-            trace.append({
-                "step": step_counter,
-                "action": "create_order",
-                "details": f"Creating order for {qty} x {sku} (Total: ₦{total_minor/100:,.2f})"
-            })
-            step_counter += 1
-
-            decision_res = self.gateway.request_payment(
-                mandate_id=mandate_id,
-                payee_id=payee,
-                amount_minor=total_minor,
-                reference=ref,
-                description=f"LLM Restock replenishment for {sku}"
-            )
-
-            dec = decision_res.get("decision", "allow")
-            reason = decision_res.get("reason_code", "AUTO_APPROVED")
-            decisions_summary[dec] = decisions_summary.get(dec, 0) + 1
-
-            trace.append({
-                "step": step_counter,
-                "action": "request_payment",
-                "details": f"MandatePay Gateway returned decision: {dec.upper()} (Reason: {reason}) for payment of ₦{total_minor/100:,.2f}"
-            })
-            step_counter += 1
-
-            orders_placed.append({
-                "sku_id": sku,
-                "qty": qty,
-                "amount_minor": total_minor,
-                "intent_id": decision_res.get("intent_id", f"pi_{ref}"),
-                "decision": dec,
-                "reason_code": reason
-            })
-
-        return {
-            "run_id": "run_llm_001",
-            "mode": "llm",
-            "status": "completed",
-            "total_orders": len(orders_placed),
-            "decisions_summary": decisions_summary,
-            "orders": orders_placed,
-            "trace": trace
-        }
-
+            # A configured LLM outage should not silently create a different plan.
+            raise

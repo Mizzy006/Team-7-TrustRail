@@ -78,35 +78,20 @@ class MarketClient:
                 }
             ]
 
-    def create_order(self, sku_id: str, qty: int, kind: str = "direct_purchase", pool_id: Optional[str] = None) -> Dict[str, Any]:
-        url = f"{self.base_url}/v1/orders"
-        payload = {
-            "sku_id": sku_id,
-            "qty": qty,
-            "kind": kind
-        }
+    def create_order(self, sku_id: str, qty: int, kind: str = "direct", pool_id: Optional[str] = None) -> Dict[str, Any]:
+        payload = {"sku_id": sku_id, "qty": qty, "kind": kind}
         if pool_id:
             payload["pool_id"] = pool_id
+        res = requests.post(f"{self.base_url}/v1/orders", json=payload, headers=self._headers(), timeout=10)
+        res.raise_for_status()
+        return res.json()
 
-        try:
-            res = requests.post(url, json=payload, headers=self._headers(), timeout=5)
-            if res.status_code in [200, 201]:
-                return res.json()
-            return {"error": f"HTTP {res.status_code}"}
-        except Exception as e:
-            # Fallback mock for testing
-            amount = 1200000 * qty
-            return {
-                "order_id": f"ord_mock_{sku_id}",
-                "kind": kind,
-                "sku_id": sku_id,
-                "qty": qty,
-                "status": "awaiting_payment",
-                "payment_request": {
-                    "payee_id": "pay_primefoods" if kind == "direct_purchase" else "pay_market_escrow",
-                    "amount": {"amount_minor": amount, "currency": "NGN"},
-                    "reference": f"ord_mock_{sku_id}",
-                    "description": f"Order for {qty} x {sku_id}"
-                },
-                "simulated": True
-            }
+    def update_order_payment(self, order_id: str, intent_id: Optional[str]) -> Dict[str, Any]:
+        payload = {"intent_id": intent_id}
+        res = requests.post(f"{self.base_url}/v1/orders/{order_id}/payment", json=payload, headers=self._headers(), timeout=10)
+        res.raise_for_status()
+        return res.json()
+
+    def reset_demo_orders(self) -> None:
+        res = requests.post(f"{self.base_url}/demo/v1/reset", headers=self._headers(), timeout=10)
+        res.raise_for_status()

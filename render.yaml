@@ -36,6 +36,13 @@ services:
         fromDatabase:
           name: trustrail_db
           property: connectionString
+      - key: GATEWAY_URL
+        fromService:
+          type: web
+          name: gateway
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MARKET_SERVICE_TOKEN
+        value: key_service_market
 
   # 3. Agent Service
   - type: web
