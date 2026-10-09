@@ -138,12 +138,13 @@ const navItems: { screen: Screen; label: string; icon: IconName }[] = [
   { screen: "groups", label: "Buy Together", icon: "users" },
   { screen: "ai", label: "MandatePay AI", icon: "sparkles" },
   { screen: "orders", label: "Orders", icon: "bag" },
+  { screen: "console", label: "Console", icon: "shield" },
 ];
 
 function Navigation({ active, go }: { active: Screen; go: (screen: Screen) => void }) {
   return <>
-    <nav className="desktop-nav"><Logo /> <div>{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} onClick={() => go(item.screen)}>{item.label}</button>)}</div><div className="nav-right"><button type="button" className="console-btn" onClick={() => go("console")}><Icon name="shield" size={16} /> Console</button><button className="avatar" type="button" onClick={() => go("profile")}>ZA</button></div></nav>
-    <nav className="bottom-nav">{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} onClick={() => go(item.screen)}><Icon name={item.icon} size={21} /><span>{item.label === "MandatePay AI" ? "Mandate AI" : item.label}</span></button>)}</nav>
+    <nav className="desktop-nav" aria-label="Main navigation"><Logo /> <div>{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} aria-current={active === item.screen ? "page" : undefined} onClick={() => go(item.screen)}>{item.label}</button>)}</div><div className="nav-right"><button className="avatar" type="button" onClick={() => go("profile")} aria-label="Open profile">ZA</button></div></nav>
+    <nav className="bottom-nav" aria-label="Main navigation">{navItems.map((item) => <button type="button" key={item.screen} className={active === item.screen ? "active" : ""} aria-current={active === item.screen ? "page" : undefined} onClick={() => go(item.screen)}><Icon name={item.icon} size={21} /><span>{item.label === "MandatePay AI" ? "Mandate AI" : item.label}</span></button>)}</nav>
   </>;
 }
 
@@ -870,6 +871,6 @@ export default function App() {
       case "profile": return <Profile go={go} />;
     }
   })();
-  const isRoot = ["home", "explore", "groups", "ai", "orders"].includes(screen);
-  return <div className="app-shell">{content}{isRoot && <Navigation active={screen} go={go} />}</div>;
+  const isRoot = ["home", "explore", "groups", "ai", "orders", "console"].includes(screen);
+  return <div className="app-shell">{isRoot && <Navigation active={screen} go={go} />}{content}</div>;
 }

@@ -107,10 +107,13 @@ h1, h2, h3, .logo { font-family: "Manrope", sans-serif; }
 .ai-teaser h3 { font-size: 22px; margin: 8px 0 5px; }
 .ai-teaser p { color: #d6d0f5; font-size: 13px; }
 .bottom-nav { display: none; }
-.desktop-nav { position: sticky; top: 0; z-index: 50; height: 70px; padding: 0 max(24px, calc((100vw - 1180px) / 2)); background: #ffffffef; backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+.desktop-nav { position: sticky; top: 0; z-index: 50; height: 70px; padding: 0 max(24px, calc((100vw - 1180px) / 2)); background: #ffffffef; backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .desktop-nav > div { display: flex; height: 100%; align-items: center; gap: 6px; }
-.desktop-nav > div button { height: 42px; padding: 0 15px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-weight: 600; }
+.desktop-nav > div:nth-child(2) { flex: 1; min-width: 0; justify-content: center; overflow-x: auto; scrollbar-width: none; }
+.desktop-nav > div:nth-child(2)::-webkit-scrollbar { display: none; }
+.desktop-nav > div button { flex: 0 0 auto; height: 42px; padding: 0 15px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-weight: 600; }
 .desktop-nav > div button.active { color: var(--brand-700); background: var(--brand-50); }
+.desktop-nav .nav-right { flex: 0 0 auto; }
 .filter-row { display: flex; gap: 9px; overflow-x: auto; padding: 17px 0 5px; scrollbar-width: none; }
 .filter-row button { flex: 0 0 auto; min-height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--muted); display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
 .filter-row button.selected { background: var(--brand-950); border-color: var(--brand-950); color: #fff; }
@@ -404,8 +407,9 @@ h1, h2, h3, .logo { font-family: "Manrope", sans-serif; }
   .page { padding: 0 16px 102px; }
   .narrow-page { padding-bottom: 40px; }
   .desktop-nav { display: none; }
-  .bottom-nav { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; height: 76px; display: grid; grid-template-columns: repeat(5, 1fr); padding: 7px 5px max(8px, env(safe-area-inset-bottom)); background: #fffffff2; border-top: 1px solid var(--line); backdrop-filter: blur(15px); }
-  .bottom-nav button { border: 0; background: transparent; color: #87908b; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-size: 9px; font-weight: 600; }
+  .bottom-nav { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; height: 76px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 7px 5px max(8px, env(safe-area-inset-bottom)); background: #fffffff2; border-top: 1px solid var(--line); backdrop-filter: blur(15px); }
+  .bottom-nav button { min-width: 0; border: 0; background: transparent; color: #87908b; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-size: 9px; font-weight: 600; }
+  .bottom-nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bottom-nav button.active { color: var(--brand-700); }
   .bottom-nav button:nth-child(3) svg { padding: 7px; box-sizing: content-box; color: #fff; background: var(--brand-600); border-radius: 12px; margin-top: -18px; box-shadow: 0 5px 12px #07945545; }
   .bottom-nav button:nth-child(3) span { margin-top: -4px; }
