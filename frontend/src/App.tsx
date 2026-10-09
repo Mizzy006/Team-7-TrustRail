@@ -648,7 +648,10 @@ function SecurityDemo({ go }: { go: (s: Screen) => void }) {
     setRunError("");
     try {
       const res = await fetch(`${agentBase}/agent/v1/attacks/ALL/run`, { method: "POST" });
-      if (!res.ok) throw new Error(`Agent returned HTTP ${res.status}`);
+      if (!res.ok) {
+        const failure = await res.json().catch(() => null);
+        throw new Error(failure?.detail || `Agent returned HTTP ${res.status}`);
+      }
       const data = await res.json();
       const mapped: Record<string, { decision: string; reasons: string[] }> = {};
       if (data.results) {
@@ -662,7 +665,8 @@ function SecurityDemo({ go }: { go: (s: Screen) => void }) {
       setResults(mapped);
       if (!data.results) setRunError("The agent response did not include scenario results.");
     } catch (error) {
-      setRunError(error instanceof Error ? `${error.message}. Check that the agent service is running.` : "Could not reach the agent service.");
+      const message = error instanceof Error ? error.message : "Could not reach the agent service.";
+      setRunError(message === "Failed to fetch" ? "Could not reach the agent service. Check the Render agent logs and CORS configuration." : message);
     }
     setRunning(false);
   };

@@ -13,6 +13,7 @@ Provides Section 4.9 compliant endpoints for:
 - POST /demo/v1/reset
 """
 
+import logging
 import uvicorn
 from fastapi import FastAPI, HTTPException, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,6 +41,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+logger = logging.getLogger(__name__)
 
 restock_agent = RestockAgent()
 attack_runner = AttackRunner()
@@ -93,19 +96,26 @@ def list_attack_scenarios() -> List[Dict[str, Any]]:
 @app.post("/agent/v1/attacks/{scenario_id}/run")
 def run_attack_scenario(scenario_id: str) -> Dict[str, Any]:
     """Executes a specific attack scenario (S1 to S6 or ALL)."""
-    if scenario_id.upper() == "ALL":
-        results = attack_runner.run_all_scenarios()
-        for r in results:
-            attack_history.append(r)
-        return {
-            "scenario_id": "ALL",
-            "verdict": "contained" if all(r.get("invariant_held", False) for r in results) else "breached",
-            "results": results
-        }
+    try:
+        if scenario_id.upper() == "ALL":
+            results = attack_runner.run_all_scenarios()
+            for r in results:
+                attack_history.append(r)
+            return {
+                "scenario_id": "ALL",
+                "verdict": "contained" if all(r.get("invariant_held", False) for r in results) else "breached",
+                "results": results
+            }
 
-    res = attack_runner.run_scenario(scenario_id)
-    attack_history.append(res)
-    return res
+        res = attack_runner.run_scenario(scenario_id)
+        attack_history.append(res)
+        return res
+    except Exception as exc:
+        logger.exception("Attack scenario %s failed", scenario_id)
+        raise HTTPException(
+            status_code=502,
+            detail="The agent could not complete the security run. Check the agent logs for the gateway error.",
+        ) from exc
 
 @app.get("/agent/v1/attacks/summary")
 def get_attack_summary() -> Dict[str, Any]:
