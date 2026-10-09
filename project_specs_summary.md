@@ -1,9 +1,5 @@
 # TrustRail — MandatePay Project Specs Summary
 
-> [!NOTE]
-> Synthesised from all 39 pages of [Project Specs.pdf](file:///c:/Users/USER/Desktop/Team-7-TrustRail/Project%20Specs.pdf) plus the contract files in `mandatepay-kit/contracts/`.
-
----
 
 ## 1. What It Is
 
